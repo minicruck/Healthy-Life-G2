@@ -1,11 +1,17 @@
 import { isRealCalendarDate } from './activityValidation'
-import type { SleepFormValues, SleepPayload } from '../types/sleep'
+import { getMadridToday } from './sleepCalendar'
+import {
+  isSleepType,
+  type SleepFormValues,
+  type SleepPayload,
+} from '../types/sleep'
 
 // Number() alone also accepts hexadecimal and exponent notation, unlike this field.
 const DECIMAL_HOURS = /^-?(?:\d+(?:\.\d*)?|\.\d+)$/
 
 export function validateSleep(
   values: SleepFormValues,
+  today = getMadridToday(),
 ): Partial<Record<keyof SleepFormValues, string>> {
   const errors: Partial<Record<keyof SleepFormValues, string>> = {}
 
@@ -13,6 +19,13 @@ export function validateSleep(
     errors.sleepDate = 'Indica la fecha del sueño.'
   } else if (!isRealCalendarDate(values.sleepDate)) {
     errors.sleepDate = 'Introduce una fecha real con formato día, mes y año.'
+  } else if (values.sleepDate > today) {
+    errors.sleepDate =
+      'No puedes registrar horas de sueño para una fecha futura.'
+  }
+
+  if (!isSleepType(values.sleepType)) {
+    errors.sleepType = 'Selecciona un tipo de descanso.'
   }
 
   const rawHours = values.hoursSlept.trim()
@@ -31,7 +44,10 @@ export function validateSleep(
 }
 
 export function toSleepPayload(values: SleepFormValues): SleepPayload {
-  if (Object.keys(validateSleep(values)).length > 0) {
+  if (
+    Object.keys(validateSleep(values)).length > 0 ||
+    !isSleepType(values.sleepType)
+  ) {
     throw new Error(
       'No se puede enviar un registro de sueño con datos inválidos.',
     )
@@ -40,5 +56,6 @@ export function toSleepPayload(values: SleepFormValues): SleepPayload {
   return {
     sleepDate: values.sleepDate,
     hoursSlept: Number(values.hoursSlept.trim()),
+    sleepType: values.sleepType,
   }
 }

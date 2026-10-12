@@ -1,5 +1,6 @@
 // Validación en servidor del contrato HU1 (docs/hu1-api.md).
 // El frontend también valida, pero el backend nunca se fía de lo que recibe.
+import { getMadridToday } from "./sleepCalendar.ts";
 
 export const ACTIVITY_TYPES = ["walking", "running", "cycling", "gym", "other"] as const;
 export const NOTES_MAX_LENGTH = 500;
@@ -52,8 +53,15 @@ export function validateNewActivity(body: unknown): ValidationResult {
   return { ok: true, value: { activityType, activityDate, notes: cleanNotes } };
 }
 
+export const SLEEP_TYPES = ["night", "nap", "other"] as const;
+export type SleepType = (typeof SLEEP_TYPES)[number];
+
 export type SleepValidationResult =
-  | { ok: true; value: { sleepDate: string; hoursSlept: number } }
+  | { ok: true; value: { sleepDate: string; hoursSlept: number; sleepType: SleepType | null } }
+  | { ok: false; message: string };
+
+export type SleepUpdateValidationResult =
+  | { ok: true; value: { sleepDate: string; hoursSlept: number; sleepType: SleepType } }
   | { ok: false; message: string };
 
 // HU2 usa componentes de calendario, sin conversiones UTC ni cambios en HU1.
@@ -66,14 +74,18 @@ function isRealSleepDate(value: string): boolean {
   return day <= daysPerMonth[month - 1];
 }
 
-export function validateNewSleep(body: unknown): SleepValidationResult {
+export function validateNewSleep(body: unknown, now = new Date()): SleepValidationResult {
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
     return { ok: false, message: "El cuerpo de la petición debe ser un objeto JSON." };
   }
-  const { sleepDate, hoursSlept } = body as Record<string, unknown>;
+  const { sleepDate, hoursSlept, sleepType } = body as Record<string, unknown>;
 
   if (typeof sleepDate !== "string" || !isRealSleepDate(sleepDate)) {
     return { ok: false, message: "La fecha del sueño no es válida." };
+  }
+
+  if (sleepDate > getMadridToday(now)) {
+    return { ok: false, message: "No puedes registrar horas de sueño para una fecha futura." };
   }
 
   if (
@@ -85,5 +97,27 @@ export function validateNewSleep(body: unknown): SleepValidationResult {
     return { ok: false, message: "Las horas de sueño no son válidas." };
   }
 
-  return { ok: true, value: { sleepDate, hoursSlept } };
+  // Omitir el campo mantiene la compatibilidad con clientes anteriores; null explícito no es un tipo.
+  if (
+    sleepType !== undefined &&
+    (typeof sleepType !== "string" || !(SLEEP_TYPES as readonly string[]).includes(sleepType))
+  ) {
+    return { ok: false, message: "El tipo de descanso no es válido. Selecciona sueño nocturno, siesta u otro." };
+  }
+
+  return { ok: true, value: { sleepDate, hoursSlept, sleepType: (sleepType as SleepType | undefined) ?? null } };
+}
+
+export function validateSleepUpdate(body: unknown, now = new Date()): SleepUpdateValidationResult {
+  const result = validateNewSleep(body, now);
+  if (!result.ok) return result;
+  if (result.value.sleepType === null) {
+    return { ok: false, message: "Selecciona un tipo de descanso para guardar los cambios." };
+  }
+  return { ok: true, value: { ...result.value, sleepType: result.value.sleepType } };
+}
+
+export function parseSleepId(value: string): number | null {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 && String(id) === value ? id : null;
 }

@@ -5,6 +5,7 @@ import { createSleep, SleepApiError } from './sleep'
 const payload: SleepPayload = {
   sleepDate: '2026-10-09',
   hoursSlept: 7.5,
+  sleepType: 'night',
 }
 const sleep: SleepRecord = {
   id: 1,
@@ -19,6 +20,8 @@ const jsonResponse = (body: unknown, status = 201) =>
   })
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-12T12:00:00Z'))
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
   vi.stubEnv('VITE_API_BASE_URL', '')
@@ -110,16 +113,73 @@ describe('POST /api/sleep', () => {
     },
   )
 
-  it('accepts a real future date and preserves it on the wire', async () => {
-    const futurePayload = { ...payload, sleepDate: '2099-12-31' }
-    fetchMock.mockResolvedValue(jsonResponse({ ...sleep, ...futurePayload }))
-    await expect(createSleep(futurePayload)).resolves.toMatchObject(
-      futurePayload,
-    )
-    expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toEqual(
-      futurePayload,
-    )
+  it.each(['2026-10-13', '2099-12-31', '9999-12-31'])(
+    'rejects future dates before fetch (%s)',
+    async (sleepDate) => {
+      await expect(createSleep({ ...payload, sleepDate })).rejects.toThrow()
+      expect(fetchMock).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(['0001-01-01', '2000-02-29', '2026-10-12'])(
+    'accepts past dates and today without changing their calendar day (%s)',
+    async (sleepDate) => {
+      const submitted = { ...payload, sleepDate }
+      fetchMock.mockResolvedValue(jsonResponse({ ...sleep, ...submitted }))
+      await expect(createSleep(submitted)).resolves.toMatchObject(submitted)
+      expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toEqual(
+        submitted,
+      )
+    },
+  )
+
+  it('uses the Madrid day when UTC is still on the previous date', async () => {
+    vi.setSystemTime(new Date('2026-10-11T22:30:00Z'))
+    const submitted = { ...payload, sleepDate: '2026-10-12' }
+    fetchMock.mockResolvedValue(jsonResponse({ ...sleep, ...submitted }))
+    await expect(createSleep(submitted)).resolves.toMatchObject(submitted)
+    await expect(
+      createSleep({ ...submitted, sleepDate: '2026-10-13' }),
+    ).rejects.toThrow()
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
+
+  it.each(['night', 'nap', 'other'] as const)(
+    'requires and transmits a supported sleep type (%s)',
+    async (sleepType) => {
+      fetchMock.mockResolvedValue(jsonResponse({ ...sleep, sleepType }))
+      await expect(
+        createSleep({ ...payload, sleepType }),
+      ).resolves.toMatchObject({
+        sleepType,
+      })
+      expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toEqual({
+        ...payload,
+        sleepType,
+      })
+    },
+  )
+
+  it.each([
+    null,
+    undefined,
+    '',
+    'NIGHT',
+    ' night ',
+    'unknown',
+    1,
+    true,
+    {},
+    [],
+  ])(
+    'rejects missing or invalid sleep types before fetch (%j)',
+    async (sleepType) => {
+      await expect(
+        createSleep({ ...payload, sleepType } as SleepPayload),
+      ).rejects.toThrow()
+      expect(fetchMock).not.toHaveBeenCalled()
+    },
+  )
 
   it.each([200, 202])(
     'does not confirm a successful-looking HTTP %i response',
@@ -260,6 +320,13 @@ describe('POST /api/sleep', () => {
     { ...sleep, hoursSlept: '7.5' },
     { ...sleep, hoursSlept: undefined },
     { ...sleep, hoursSlept: null },
+    { ...sleep, sleepType: undefined },
+    { ...sleep, sleepType: null },
+    { ...sleep, sleepType: 'nap' },
+    { ...sleep, sleepType: 'unknown' },
+    { ...sleep, sleepType: 'NIGHT' },
+    { ...sleep, sleepType: ' night ' },
+    { ...sleep, sleepType: 1 },
     { ...sleep, createdAt: null },
     { ...sleep, createdAt: '2026-10-09' },
     { ...sleep, createdAt: '2026-02-30T10:30:00.000Z' },

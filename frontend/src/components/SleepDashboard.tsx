@@ -8,7 +8,11 @@ import {
   type ReactNode,
 } from 'react'
 import { useSleepRecords } from '../hooks/useSleepRecords'
-import { localToday } from '../lib/activityValidation'
+import { useSleepToday } from '../hooks/useSleepToday'
+import { summarizeSleepDays } from '../lib/sleepDailyStatistics'
+import type { SleepRecord } from '../types/sleep'
+import SleepEditDialog from './SleepEditDialog'
+import SleepDailySection from './SleepDailySection'
 import {
   filterSleepRecords,
   formatSleepDate,
@@ -49,29 +53,6 @@ const periods: { value: SleepPeriod; label: string }[] = [
   { value: 'all', label: 'Todo el historial' },
 ]
 
-function useLocalToday(active: boolean) {
-  const [today, setToday] = useState(localToday)
-  useEffect(() => {
-    if (!active) return
-    let timer: ReturnType<typeof setTimeout>
-    function updateDay() {
-      clearTimeout(timer)
-      setToday(localToday())
-      const now = new Date()
-      const midnight = new Date(now)
-      midnight.setHours(24, 0, 0, 50)
-      timer = setTimeout(updateDay, midnight.getTime() - now.getTime())
-    }
-    updateDay()
-    document.addEventListener('visibilitychange', updateDay)
-    return () => {
-      clearTimeout(timer)
-      document.removeEventListener('visibilitychange', updateDay)
-    }
-  }, [active])
-  return today
-}
-
 type SleepDashboardProps = { active: boolean; revision: number }
 
 export default function SleepDashboard({
@@ -79,13 +60,39 @@ export default function SleepDashboard({
   revision,
 }: SleepDashboardProps) {
   const [period, setPeriod] = useState<SleepPeriod>('7')
-  const { records, loading, error, retry } = useSleepRecords(active, revision)
-  const today = useLocalToday(active)
+  const [editing, setEditing] = useState<SleepRecord | null>(null)
+  const [editRevision, setEditRevision] = useState(0)
+  const [editMessage, setEditMessage] = useState('')
+  const { records, loading, error, retry } = useSleepRecords(
+    active,
+    revision + editRevision,
+  )
+  const today = useSleepToday(active)
   const selected = useMemo(
     () => filterSleepRecords(records ?? [], period, today),
     [records, period, today],
   )
   const statistics = useMemo(() => summarizeSleep(selected), [selected])
+  const dailyStatistics = useMemo(
+    () => summarizeSleepDays(selected),
+    [selected],
+  )
+
+  useEffect(() => {
+    if (editMessage && !editing)
+      document.getElementById('sleep-dashboard-title')?.focus()
+  }, [editMessage, editing])
+
+  function edit(record: SleepRecord) {
+    setEditMessage('')
+    setEditing(record)
+  }
+
+  function edited() {
+    setEditing(null)
+    setEditMessage('Descanso actualizado correctamente.')
+    setEditRevision((value) => value + 1)
+  }
 
   return (
     <section
@@ -98,7 +105,7 @@ export default function SleepDashboard({
           <div className="sleep-dashboard-heading">
             <div>
               <p className="sleep-dashboard-eyebrow">SUEÑO · TU SEGUIMIENTO</p>
-              <h2 id="sleep-dashboard-title">
+              <h2 id="sleep-dashboard-title" tabIndex={-1}>
                 Tu descanso <em>en cifras</em>
               </h2>
               <p className="sleep-dashboard-intro">
@@ -142,14 +149,31 @@ export default function SleepDashboard({
             </p>
           </div>
 
+          <p
+            className="sleep-edit-confirmation"
+            role="status"
+            aria-live="polite"
+          >
+            {editMessage}
+          </p>
+          {editing && (
+            <SleepEditDialog
+              key={editing.id}
+              record={editing}
+              onClose={() => setEditing(null)}
+              onSaved={edited}
+            />
+          )}
+
           {error ? (
             <div className="sleep-dashboard-message sleep-dashboard-error">
               <div role="alert">
                 <h3>No se han podido actualizar las estadísticas</h3>
                 <p>{error}</p>
                 <p>
-                  Si el formulario confirmó el registro, no necesitas enviarlo
-                  otra vez. Puedes volver a cargar las estadísticas.
+                  Si el formulario confirmó el registro o la edición, no
+                  necesitas enviarlo otra vez. Puedes volver a cargar las
+                  estadísticas.
                 </p>
               </div>
               <button type="button" className="sleep-retry" onClick={retry}>
@@ -195,7 +219,10 @@ export default function SleepDashboard({
             </div>
           ) : (
             <div className="sleep-dashboard-results" aria-busy={loading}>
-              <SleepStatsCards statistics={statistics} />
+              <SleepStatsCards
+                statistics={statistics}
+                dailyStatistics={dailyStatistics}
+              />
               <SleepChartBoundary>
                 <Suspense
                   fallback={<p role="status">Preparando la gráfica…</p>}
@@ -203,12 +230,22 @@ export default function SleepDashboard({
                   <SleepEvolutionChart records={selected} />
                 </Suspense>
               </SleepChartBoundary>
-              <SleepRecordsTable records={selected} />
+              <SleepRecordsTable
+                records={selected}
+                today={today}
+                onEdit={edit}
+              />
               <p className="sleep-calculation-note">
                 La media se calcula por registro. Los días sin datos no cuentan
                 como cero y los registros de una misma fecha se mantienen
-                separados.
+                separados. La media diaria divide el total entre los días con
+                registros, sin incluir los días sin información.
               </p>
+              <SleepDailySection
+                records={selected}
+                today={today}
+                onEdit={edit}
+              />
             </div>
           )}
         </>

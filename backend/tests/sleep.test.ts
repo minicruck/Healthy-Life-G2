@@ -29,10 +29,11 @@ for (const hoursSlept of [8, 7.5, 24]) {
       .send({ sleepDate: "2026-10-10", hoursSlept });
 
     assert.equal(res.status, 201);
-    assert.deepEqual(Object.keys(res.body).sort(), ["createdAt", "hoursSlept", "id", "sleepDate"]);
+    assert.deepEqual(Object.keys(res.body).sort(), ["createdAt", "hoursSlept", "id", "sleepDate", "sleepType"]);
     assert.equal(res.body.id, 1);
     assert.equal(res.body.sleepDate, "2026-10-10");
     assert.equal(res.body.hoursSlept, hoursSlept);
+    assert.equal(res.body.sleepType, null);
     assert.equal(new Date(res.body.createdAt).toISOString(), res.body.createdAt);
 
     const row = db.prepare("SELECT * FROM sleep_records WHERE id = ?").get(1)!;
@@ -85,14 +86,19 @@ test("rechaza fechas inexistentes, tipos incorrectos y formatos no exactos", asy
   assert.deepEqual((await request(app).get("/api/sleep")).body, []);
 });
 
-test("acepta fechas gregorianas reales, bisiestos y años 0001 a 9999 sin convertirlas", async () => {
-  for (const sleepDate of ["0001-01-01", "0099-12-31", "2000-02-29", "2024-02-29", "9999-12-31"]) {
+test("acepta fechas gregorianas pasadas, bisiestos y años pequeños sin convertirlas", async () => {
+  for (const sleepDate of ["0001-01-01", "0099-12-31", "2000-02-29", "2024-02-29"]) {
     const res = await request(app)
       .post("/api/sleep")
       .send({ sleepDate, hoursSlept: 8 });
     assert.equal(res.status, 201, `debería aceptar ${sleepDate}`);
     assert.equal(res.body.sleepDate, sleepDate);
   }
+  // El año 9999 sigue siendo calendario válido, pero la nueva regla prohíbe registrarlo en el futuro.
+  assert.equal(validateNewSleep({ sleepDate: "9999-12-31", hoursSlept: 8 }, new Date("9999-12-31T12:00:00Z")).ok, true);
+  const future = await request(app).post("/api/sleep").send({ sleepDate: "9999-12-31", hoursSlept: 8 });
+  assert.equal(future.status, 400);
+  assert.equal(future.body.error.message, "No puedes registrar horas de sueño para una fecha futura.");
 });
 
 test("rechaza cuerpos que no son objetos JSON y objetos incompletos", async () => {

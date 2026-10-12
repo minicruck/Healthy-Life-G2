@@ -1,13 +1,68 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SleepFormValues } from '../types/sleep'
 import { toSleepPayload, validateSleep } from './sleepValidation'
 
 const validValues: SleepFormValues = {
   sleepDate: '2026-10-09',
   hoursSlept: '7.5',
+  sleepType: 'night',
 }
 
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-12T12:00:00.000Z'))
+})
+afterEach(() => vi.useRealTimers())
+
 describe('sleep form validation', () => {
+  it.each(['night', 'nap', 'other'] as const)(
+    'accepts the agreed sleep type %s',
+    (sleepType) => {
+      expect(validateSleep({ ...validValues, sleepType })).toEqual({})
+      expect(toSleepPayload({ ...validValues, sleepType }).sleepType).toBe(
+        sleepType,
+      )
+    },
+  )
+
+  it.each(['', 'invalid', 'Night', ' nap ', null, undefined, 1])(
+    'rejects missing or arbitrary types %j',
+    (sleepType) => {
+      const values = { ...validValues, sleepType } as SleepFormValues
+      expect(validateSleep(values)).toHaveProperty('sleepType')
+      expect(() => toSleepPayload(values)).toThrow()
+    },
+  )
+
+  it.each(['2026-10-13', '2027-01-01', '9999-12-31'])(
+    'rejects a future calendar date %s',
+    (sleepDate) => {
+      expect(validateSleep({ ...validValues, sleepDate })).toEqual({
+        sleepDate: 'No puedes registrar horas de sueño para una fecha futura.',
+      })
+      expect(() => toSleepPayload({ ...validValues, sleepDate })).toThrow()
+    },
+  )
+
+  it.each([
+    ['2026-10-11T22:00:00Z', '2026-10-12', '2026-10-13'],
+    ['2026-03-28T23:30:00Z', '2026-03-29', '2026-03-30'],
+    ['2026-03-29T22:30:00Z', '2026-03-30', '2026-03-31'],
+    ['2026-10-24T22:30:00Z', '2026-10-25', '2026-10-26'],
+    ['2026-10-25T23:30:00Z', '2026-10-26', '2026-10-27'],
+  ])(
+    'uses the Madrid calendar near midnight and DST (%s)',
+    (instant, today, tomorrow) => {
+      vi.setSystemTime(new Date(instant))
+      expect(validateSleep({ ...validValues, sleepDate: today })).toEqual({})
+      expect(
+        validateSleep({ ...validValues, sleepDate: tomorrow }),
+      ).toHaveProperty('sleepDate')
+      expect(
+        toSleepPayload({ ...validValues, sleepDate: today }).sleepDate,
+      ).toBe(today)
+    },
+  )
   it.each([
     '0.000000001',
     '0.0001',
@@ -26,17 +81,20 @@ describe('sleep form validation', () => {
     },
   )
 
-  it.each(['2024-02-29', '2000-02-29', '0001-01-01', '9999-12-31'])(
-    'accepts real Gregorian dates without a future-date restriction (%s)',
+  it.each(['2024-02-29', '2000-02-29', '0001-01-01', '2026-10-12'])(
+    'accepts real Gregorian dates up to today (%s)',
     (sleepDate) => {
       expect(validateSleep({ ...validValues, sleepDate })).toEqual({})
     },
   )
 
-  it('reports both required fields together', () => {
-    expect(validateSleep({ sleepDate: '', hoursSlept: '' })).toEqual({
+  it('reports all three required fields together', () => {
+    expect(
+      validateSleep({ sleepDate: '', hoursSlept: '', sleepType: '' }),
+    ).toEqual({
       sleepDate: expect.any(String),
       hoursSlept: expect.any(String),
+      sleepType: expect.any(String),
     })
   })
 
@@ -117,12 +175,13 @@ describe('sleep payload construction', () => {
       expect(toSleepPayload(values)).toEqual({
         sleepDate: '2026-10-09',
         hoursSlept: expected,
+        sleepType: 'night',
       })
       expect(values.hoursSlept).toBe(hoursSlept)
     },
   )
 
-  it.each(['2026-03-29', '2026-10-25', '2099-12-31'])(
+  it.each(['2026-03-29', '2025-10-26', '2026-10-12'])(
     'keeps the supplied calendar date intact (%s)',
     (sleepDate) => {
       expect(toSleepPayload({ ...validValues, sleepDate }).sleepDate).toBe(
@@ -131,7 +190,7 @@ describe('sleep payload construction', () => {
     },
   )
 
-  it('only includes the two agreed fields and leaves the form unchanged', () => {
+  it('only includes the three agreed fields and leaves the form unchanged', () => {
     const values = {
       ...validValues,
       userId: 6,
@@ -141,6 +200,7 @@ describe('sleep payload construction', () => {
     expect(toSleepPayload(values)).toEqual({
       sleepDate: '2026-10-09',
       hoursSlept: 7.5,
+      sleepType: 'night',
     })
     expect(values).toEqual({
       ...validValues,

@@ -78,7 +78,7 @@
 }
 
 .sleep-evolution-data th:first-child {
-  width: 46%;
+  width: 28%;
 }
 
 .sleep-evolution-data th:last-child,
@@ -99,6 +99,60 @@
 
 @media (prefers-reduced-motion: reduce) {
   .sleep-evolution-data > summary {
+    transition: none;
+  }
+}
+
+.sleep-record-edit {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 5px;
+  border: 0;
+  border-bottom: 1px solid var(--red);
+  background: transparent;
+  color: var(--red-dark);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 160ms;
+}
+.sleep-record-edit:hover {
+  background: #f3e5df;
+}
+.sleep-record-edit:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.sleep-historical-date {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--red-dark);
+}
+@media (max-width: 480px) {
+  .sleep-evolution-data th,
+  .sleep-evolution-data td {
+    padding-right: 4px;
+  }
+  .sleep-evolution-data th:nth-child(2) {
+    width: 13%;
+  }
+  .sleep-evolution-data th:nth-child(3) {
+    width: 16%;
+  }
+  .sleep-evolution-data th:nth-child(4) {
+    width: 24%;
+  }
+  .sleep-evolution-data th:last-child {
+    width: 19%;
+  }
+  .sleep-record-edit {
+    font-size: 11px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sleep-record-edit {
     transition: none;
   }
 }

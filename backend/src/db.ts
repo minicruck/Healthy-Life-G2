@@ -4,6 +4,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import type { SleepType } from "./validation.ts";
 
 export interface ActivityRow {
   id: number;
@@ -27,12 +28,14 @@ export interface SleepRow {
   sleep_date: string;
   hours_slept: number;
   created_at: string;
+  sleep_type: SleepType | null;
 }
 
 export interface NewSleep {
   userId: string;
   sleepDate: string;
   hoursSlept: number;
+  sleepType: SleepType | null;
 }
 
 export function openDatabase(path: string): DatabaseSync {
@@ -57,9 +60,15 @@ export function openDatabase(path: string): DatabaseSync {
       user_id     TEXT    NOT NULL,
       sleep_date  TEXT    NOT NULL,
       hours_slept REAL    NOT NULL,
-      created_at  TEXT    NOT NULL
+      created_at  TEXT    NOT NULL,
+      sleep_type  TEXT
     )
   `);
+  // ALTER conserva las filas y asigna NULL a su nueva columna, sin inventar su clasificación.
+  const sleepColumns = db.prepare("PRAGMA table_info(sleep_records)").all();
+  if (!sleepColumns.some((column) => column.name === "sleep_type")) {
+    db.exec("ALTER TABLE sleep_records ADD COLUMN sleep_type TEXT");
+  }
   return db;
 }
 
@@ -90,10 +99,10 @@ export function insertSleep(db: DatabaseSync, sleep: NewSleep): SleepRow {
   const createdAt = new Date().toISOString();
   const result = db
     .prepare(
-      `INSERT INTO sleep_records (user_id, sleep_date, hours_slept, created_at)
-       VALUES (?, ?, ?, ?)`
+      `INSERT INTO sleep_records (user_id, sleep_date, hours_slept, created_at, sleep_type)
+       VALUES (?, ?, ?, ?, ?)`
     )
-    .run(sleep.userId, sleep.sleepDate, sleep.hoursSlept, createdAt);
+    .run(sleep.userId, sleep.sleepDate, sleep.hoursSlept, createdAt, sleep.sleepType);
 
   return db
     .prepare(`SELECT * FROM sleep_records WHERE id = ?`)
@@ -107,4 +116,26 @@ export function listSleep(db: DatabaseSync, userId: string): SleepRow[] {
        ORDER BY sleep_date DESC, id DESC`
     )
     .all(userId) as unknown as SleepRow[];
+}
+
+export function findSleep(db: DatabaseSync, id: number, userId: string): SleepRow | undefined {
+  return db
+    .prepare("SELECT * FROM sleep_records WHERE id = ? AND user_id = ?")
+    .get(id, userId) as unknown as SleepRow | undefined;
+}
+
+export function updateSleep(
+  db: DatabaseSync,
+  id: number,
+  userId: string,
+  changes: { sleepDate: string; hoursSlept: number; sleepType: SleepType },
+): SleepRow | undefined {
+  const result = db
+    .prepare(`
+      UPDATE sleep_records SET sleep_date = ?, hours_slept = ?, sleep_type = ?
+      WHERE id = ? AND user_id = ?
+    `)
+    .run(changes.sleepDate, changes.hoursSlept, changes.sleepType, id, userId);
+  if (Number(result.changes) === 0) return undefined;
+  return findSleep(db, id, userId);
 }

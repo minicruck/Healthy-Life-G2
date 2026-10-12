@@ -75,8 +75,8 @@ export default function RegisterActivityPage() {
               </>
             ) : (
               <>
-                Anota la fecha y las horas que has dormido. Puedes incluir
-                medias horas u otros valores decimales.
+                Anota cuándo y cuánto has dormido, de noche o en una siesta.
+                Puedes registrar varios descansos en un mismo día.
               </>
             )}
           </p>

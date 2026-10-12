@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { localToday } from '../lib/activityValidation'
+import { getMadridToday } from '../lib/sleepCalendar'
+import { useSleepToday } from './useSleepToday'
 import { toSleepPayload, validateSleep } from '../lib/sleepValidation'
 import { SleepApiError, createSleep } from '../services/sleep'
 import type { SleepFormValues, SleepRecord } from '../types/sleep'
@@ -7,11 +8,13 @@ import type { SleepFormValues, SleepRecord } from '../types/sleep'
 type FieldName = keyof SleepFormValues
 type Feedback = { kind: 'success' | 'error'; message: string } | null
 const emptyForm = (): SleepFormValues => ({
-  sleepDate: localToday(),
+  sleepDate: getMadridToday(),
   hoursSlept: '',
+  sleepType: '',
 })
 
 export function useSleepForm(onSaved?: (record: SleepRecord) => void) {
+  const today = useSleepToday()
   const [values, setValues] = useState<SleepFormValues>(emptyForm)
   const [touched, setTouched] = useState<Partial<Record<FieldName, boolean>>>(
     {},
@@ -22,7 +25,7 @@ export function useSleepForm(onSaved?: (record: SleepRecord) => void) {
   const inFlight = useRef(false)
   const controller = useRef<AbortController | null>(null)
   const form = useRef<HTMLFormElement>(null)
-  const errors = validateSleep(values)
+  const errors = validateSleep(values, today)
 
   useEffect(() => () => controller.current?.abort(), [])
 
@@ -41,7 +44,7 @@ export function useSleepForm(onSaved?: (record: SleepRecord) => void) {
     // The synchronous lock also prevents a second submit before React re-renders.
     if (inFlight.current) return
     setFeedback(null)
-    setTouched({ sleepDate: true, hoursSlept: true })
+    setTouched({ sleepDate: true, hoursSlept: true, sleepType: true })
     const firstInvalid = (Object.keys(errors) as FieldName[])[0]
     if (firstInvalid) {
       setValidationNotice(true)
@@ -89,6 +92,7 @@ export function useSleepForm(onSaved?: (record: SleepRecord) => void) {
     touched[field] ? errors[field] : undefined
 
   return {
+    today,
     values,
     submitting,
     feedback,

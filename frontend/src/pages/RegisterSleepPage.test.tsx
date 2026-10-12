@@ -10,6 +10,7 @@ const sleepRecord = {
   id: 1,
   sleepDate: '2026-10-11',
   hoursSlept: 7.5,
+  sleepType: 'night',
   createdAt: '2026-10-11T15:00:00.000Z',
 }
 const jsonResponse = (body: unknown, status = 201) =>
@@ -19,6 +20,8 @@ const jsonResponse = (body: unknown, status = 201) =>
   })
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-12T12:00:00.000Z'))
   fetchMock.mockReset()
   getFetchMock.mockReset()
   getFetchMock.mockImplementation(async () => jsonResponse([], 200))
@@ -29,13 +32,17 @@ beforeEach(() => {
       : getFetchMock(input, init),
   )
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
 
 async function openSleep(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Horas de sueño' }))
   return {
     date: screen.getByLabelText(/Fecha del sueño/),
     hours: screen.getByRole('spinbutton', { name: 'Horas dormidas' }),
+    type: screen.getByRole('combobox', { name: 'Tipo de descanso' }),
     save: screen.getByRole('button', { name: 'Guardar horas de sueño' }),
   }
 }
@@ -125,6 +132,7 @@ describe('HU2 en la aplicación de Healthy Life', () => {
       fireEvent.change(fields.date, {
         target: { value: sleepRecord.sleepDate },
       })
+      await user.selectOptions(fields.type, 'night')
       await user.type(fields.hours, String(hoursSlept))
       expect(screen.queryByText(success)).not.toBeInTheDocument()
       await user.click(fields.save)
@@ -136,6 +144,7 @@ describe('HU2 en la aplicación de Healthy Life', () => {
       expect(JSON.parse(String(init?.body))).toEqual({
         sleepDate: sleepRecord.sleepDate,
         hoursSlept,
+        sleepType: 'night',
       })
       expect(fields.hours).toHaveValue(null)
     },
@@ -180,6 +189,7 @@ describe('HU2 en la aplicación de Healthy Life', () => {
     render(<RegisterActivityPage />)
     const fields = await openSleep(user)
     fireEvent.change(fields.date, { target: { value: sleepRecord.sleepDate } })
+    await user.selectOptions(fields.type, 'night')
     await user.type(fields.hours, '7.5')
     await user.dblClick(fields.save)
     fireEvent.submit(fields.save.closest('form')!)
@@ -189,6 +199,7 @@ describe('HU2 en la aplicación de Healthy Life', () => {
     ).toBeDisabled()
     expect(fields.hours).toBeDisabled()
     expect(fields.date).toBeDisabled()
+    expect(fields.type).toBeDisabled()
     expect(screen.queryByText(success)).not.toBeInTheDocument()
     await act(async () => finish(jsonResponse(sleepRecord)))
     expect(await screen.findByText(success)).toBeVisible()
@@ -221,6 +232,7 @@ describe('HU2 en la aplicación de Healthy Life', () => {
       fireEvent.change(fields.date, {
         target: { value: sleepRecord.sleepDate },
       })
+      await user.selectOptions(fields.type, 'night')
       await user.type(fields.hours, '7.5')
       await user.click(fields.save)
       expect(await screen.findByRole('alert')).toBeVisible()

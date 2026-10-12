@@ -5,8 +5,8 @@ import cors from "cors";
 import type { DatabaseSync } from "node:sqlite";
 import { insertActivity, listActivities, type ActivityRow } from "./db.ts";
 import { validateNewActivity } from "./validation.ts";
-import { insertSleep, listSleep, type SleepRow } from "./db.ts";
-import { validateNewSleep } from "./validation.ts";
+import { insertSleep, listSleep, findSleep, updateSleep, type SleepRow } from "./db.ts";
+import { validateNewSleep, validateSleepUpdate, parseSleepId } from "./validation.ts";
 
 export interface AppConfig {
   db: DatabaseSync;
@@ -35,6 +35,7 @@ function sleepToApi(row: SleepRow) {
     id: row.id,
     sleepDate: row.sleep_date,
     hoursSlept: row.hours_slept,
+    sleepType: row.sleep_type,
     createdAt: row.created_at,
   };
 }
@@ -78,6 +79,30 @@ export function createApp({ db, demoUserId, corsOrigin }: AppConfig) {
   // Auxiliar: registros del usuario configurado, del más reciente al más antiguo.
   app.get("/api/sleep", (_req, res) => {
     res.json(listSleep(db, demoUserId).map(sleepToApi));
+  });
+
+  // PATCH usa los tres campos editables completos; nunca cambia id, usuario ni createdAt.
+  app.patch("/api/sleep/:id", (req, res) => {
+    const id = parseSleepId(req.params.id);
+    if (id === null) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", "El identificador del registro no es válido."));
+      return;
+    }
+    if (!findSleep(db, id, demoUserId)) {
+      res.status(404).json(errorBody("NOT_FOUND", "Registro de sueño no encontrado."));
+      return;
+    }
+    const result = validateSleepUpdate(req.body);
+    if (!result.ok) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", result.message));
+      return;
+    }
+    const row = updateSleep(db, id, demoUserId, result.value);
+    if (!row) {
+      res.status(404).json(errorBody("NOT_FOUND", "Registro de sueño no encontrado."));
+      return;
+    }
+    res.json(sleepToApi(row));
   });
 
   app.use("/api", (_req, res) => {

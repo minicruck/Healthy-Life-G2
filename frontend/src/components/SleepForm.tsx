@@ -1,11 +1,12 @@
 import FieldError from './FieldError'
 import { useSleepForm } from '../hooks/useSleepForm'
-import type { SleepRecord } from '../types/sleep'
+import { SLEEP_TYPE_OPTIONS, type SleepRecord } from '../types/sleep'
 
 type SleepFormProps = { onSaved?: (record: SleepRecord) => void }
 
 export default function SleepForm({ onSaved }: SleepFormProps = {}) {
   const {
+    today,
     values,
     submitting,
     feedback,
@@ -43,6 +44,7 @@ export default function SleepForm({ onSaved }: SleepFormProps = {}) {
             id="sleepDate"
             name="sleepDate"
             type="date"
+            max={today}
             required
             value={values.sleepDate}
             disabled={submitting}
@@ -52,7 +54,8 @@ export default function SleepForm({ onSaved }: SleepFormProps = {}) {
             aria-describedby={`sleep-date-hint${visibleError('sleepDate') ? ' sleepDate-error' : ''}`}
           />
           <p className="field-hint" id="sleep-date-hint">
-            El día al que corresponde tu descanso.
+            El día al que corresponde tu descanso. Hasta hoy, según
+            Europe/Madrid.
           </p>
           <div className="sleep-field-error">
             <FieldError
@@ -95,6 +98,55 @@ export default function SleepForm({ onSaved }: SleepFormProps = {}) {
             <FieldError
               id="hoursSlept-error"
               message={visibleError('hoursSlept')}
+            />
+          </div>
+        </div>
+
+        <div className="form-field sleep-type-field">
+          <label htmlFor="sleepType">
+            <span className="field-number" aria-hidden="true">
+              03
+            </span>{' '}
+            Tipo de descanso{' '}
+            <span className="required-mark" aria-hidden="true">
+              *
+            </span>
+          </label>
+          <div className="select-wrap">
+            <select
+              id="sleepType"
+              name="sleepType"
+              required
+              value={values.sleepType}
+              disabled={submitting}
+              onChange={(event) => update('sleepType', event.target.value)}
+              onBlur={() => blur('sleepType')}
+              aria-invalid={Boolean(visibleError('sleepType'))}
+              aria-describedby={
+                visibleError('sleepType') ? 'sleepType-error' : undefined
+              }
+            >
+              <option value="" disabled>
+                Selecciona un tipo de descanso
+              </option>
+              {SLEEP_TYPE_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <svg
+              className="select-chevron"
+              viewBox="0 0 16 16"
+              aria-hidden="true"
+            >
+              <path d="m4 6 4 4 4-4" />
+            </svg>
+          </div>
+          <div className="sleep-field-error">
+            <FieldError
+              id="sleepType-error"
+              message={visibleError('sleepType')}
             />
           </div>
         </div>

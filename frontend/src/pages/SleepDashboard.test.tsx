@@ -29,6 +29,7 @@ const record = (
   id,
   sleepDate,
   hoursSlept,
+  sleepType: 'night',
   createdAt: '2026-10-11T10:00:00.000Z',
 })
 const currentRecord = record(1, '2026-10-11', 8)
@@ -36,7 +37,7 @@ const currentRecord = record(1, '2026-10-11', 8)
 beforeEach(() => {
   // Only freeze Date: user events and async request settling keep real timers.
   vi.useFakeTimers({ toFake: ['Date'] })
-  vi.setSystemTime(new Date(2026, 9, 11, 12))
+  vi.setSystemTime(new Date('2026-10-11T10:00:00Z'))
   fetchMock.mockReset()
   getMock.mockReset()
   postMock.mockReset()
@@ -82,6 +83,10 @@ async function openDashboard(user: ReturnType<typeof userEvent.setup>) {
 }
 
 async function submitSleep(user: ReturnType<typeof userEvent.setup>) {
+  await user.selectOptions(
+    screen.getByRole('combobox', { name: 'Tipo de descanso' }),
+    'night',
+  )
   fireEvent.change(screen.getByLabelText(/Fecha del sueño/), {
     target: { value: '2026-10-11' },
   })
@@ -225,8 +230,8 @@ describe('Seguimiento de sueño en la aplicación', () => {
       ),
     ).toBeVisible()
 
-    // Use a local calendar constructor so this also works outside UTC and across DST.
-    vi.setSystemTime(new Date(2026, 9, 12, 0, 1))
+    // El calendario del proyecto cambia a medianoche de Madrid, incluso en un proceso UTC.
+    vi.setSystemTime(new Date('2026-10-11T22:01:00Z'))
     fireEvent(document, new Event('visibilitychange'))
 
     expect(
@@ -376,6 +381,7 @@ describe('Seguimiento de sueño en la aplicación', () => {
     expect(JSON.parse(String(postMock.mock.calls[0][1]?.body))).toEqual({
       sleepDate: '2026-10-11',
       hoursSlept: 7.5,
+      sleepType: 'night',
     })
     expect(
       screen.queryByTestId('sleep-stat-count')?.textContent ?? '',

@@ -93,7 +93,7 @@
 }
 .sleep-stats {
   display: grid;
-  grid-template-columns: 1.4fr repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin: 0 0 24px;
 }
@@ -137,6 +137,7 @@
   line-height: 1.6;
 }
 .sleep-stat-primary {
+  grid-column: span 2;
   color: #fffefa;
   background: var(--red-dark);
   border-color: var(--red-dark);
@@ -273,7 +274,7 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .sleep-stat-primary {
-    grid-column: 1 / -1;
+    grid-column: span 2;
   }
   .sleep-stat-primary dt {
     min-height: auto;
@@ -329,4 +330,26 @@
   .sleep-empty-mark {
     font-size: 30px;
   }
+}
+
+.sleep-stat-daily {
+  grid-column: span 2;
+  background: #e9e9df;
+  border-bottom-color: #7b8069;
+}
+.sleep-stat-daily .sleep-stat-value {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: clamp(42px, 4vw, 56px);
+  font-weight: 400;
+}
+.sleep-edit-confirmation:not(:empty) {
+  border-left: 3px solid #53735b;
+  background: #edf0e6;
+  color: #314735;
+  padding: 15px 18px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.sleep-edit-confirmation:empty {
+  margin: 0;
 }

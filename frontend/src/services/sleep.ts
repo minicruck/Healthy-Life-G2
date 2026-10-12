@@ -1,4 +1,6 @@
 import { isRealCalendarDate } from '../lib/activityValidation'
+import { getMadridToday } from '../lib/sleepCalendar'
+import { isSleepType } from '../types/sleep'
 import type { SleepPayload, SleepRecord } from '../types/sleep'
 
 type SleepApiErrorKind = 'network' | 'http' | 'unexpected' | 'timeout'
@@ -22,6 +24,8 @@ const CANCELLED_MESSAGE =
   'La solicitud se ha cancelado. No podemos confirmar el registro.'
 const LIST_UNEXPECTED_MESSAGE =
   'El servidor ha devuelto datos de sueño inesperados. No se ha podido cargar el seguimiento.'
+const UPDATE_UNEXPECTED_MESSAGE =
+  'El servidor ha devuelto una respuesta inesperada. No podemos confirmar los cambios del registro de sueño.'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -64,20 +68,27 @@ function isSleepRecord(
     typeof value.sleepDate === 'string' &&
     isRealCalendarDate(value.sleepDate) &&
     isHoursSlept(value.hoursSlept) &&
+    (value.sleepType === null || isSleepType(value.sleepType)) &&
     isUtcTimestamp(value.createdAt) &&
     (submitted === undefined ||
       (value.sleepDate === submitted.sleepDate &&
-        value.hoursSlept === submitted.hoursSlept))
+        value.hoursSlept === submitted.hoursSlept &&
+        value.sleepType === submitted.sleepType))
   )
 }
 
-function httpError(status: number, body: unknown): SleepApiError {
-  let message =
-    'No se han podido registrar las horas de sueño. El servidor ha rechazado la petición.'
+function httpError(
+  status: number,
+  body: unknown,
+  editing = false,
+): SleepApiError {
+  let message = editing
+    ? 'No se han podido guardar los cambios del registro de sueño. El servidor ha rechazado la petición.'
+    : 'No se han podido registrar las horas de sueño. El servidor ha rechazado la petición.'
 
   if (status === 400) {
     message =
-      'El servidor no ha aceptado los datos. Revisa la fecha y las horas y vuelve a intentarlo.'
+      'El servidor no ha aceptado los datos. Revisa la fecha, las horas y el tipo de sueño y vuelve a intentarlo.'
     if (
       isRecord(body) &&
       isRecord(body.error) &&
@@ -89,14 +100,16 @@ function httpError(status: number, body: unknown): SleepApiError {
       message = body.error.message
     }
   } else if (status === 404) {
-    message =
-      'No se ha encontrado el servicio de registro de sueño. Comprueba la configuración de la API.'
+    message = editing
+      ? 'No se ha encontrado el registro de sueño. Actualiza el seguimiento antes de volver a intentarlo.'
+      : 'No se ha encontrado el servicio de registro de sueño. Comprueba la configuración de la API.'
   } else if (status === 413) {
     message =
       'La petición es demasiado grande. Revisa los datos e inténtalo de nuevo.'
   } else if (status >= 500) {
-    message =
-      'El servidor no ha podido completar el registro. Inténtalo de nuevo más tarde.'
+    message = editing
+      ? 'El servidor no ha podido guardar los cambios. Inténtalo de nuevo más tarde.'
+      : 'El servidor no ha podido completar el registro. Inténtalo de nuevo más tarde.'
   }
 
   return new SleepApiError('http', message, status)
@@ -105,12 +118,18 @@ function httpError(status: number, body: unknown): SleepApiError {
 async function sendSleep(
   payload: SleepPayload,
   signal: AbortSignal,
+  original?: Pick<SleepRecord, 'id' | 'createdAt'>,
 ): Promise<SleepRecord> {
   const baseUrl = (
     import.meta.env.VITE_API_BASE_URL?.trim() || 'http://localhost:3001'
   ).replace(/\/+$/, '')
-  const response = await fetch(`${baseUrl}/api/sleep`, {
-    method: 'POST',
+  const editing = original !== undefined
+  const unexpectedMessage = editing
+    ? UPDATE_UNEXPECTED_MESSAGE
+    : UNEXPECTED_MESSAGE
+  const path = editing ? `/api/sleep/${original.id}` : '/api/sleep'
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: editing ? 'PATCH' : 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
     signal,
@@ -120,15 +139,40 @@ async function sendSleep(
   try {
     body = await response.json()
   } catch {
-    if (!response.ok) throw httpError(response.status, undefined)
-    throw new SleepApiError('unexpected', UNEXPECTED_MESSAGE, response.status)
+    if (!response.ok) throw httpError(response.status, undefined, editing)
+    throw new SleepApiError('unexpected', unexpectedMessage, response.status)
   }
 
-  if (!response.ok) throw httpError(response.status, body)
-  if (response.status !== 201 || !isSleepRecord(body, payload)) {
-    throw new SleepApiError('unexpected', UNEXPECTED_MESSAGE, response.status)
+  if (!response.ok) throw httpError(response.status, body, editing)
+  if (
+    response.status !== (editing ? 200 : 201) ||
+    !isSleepRecord(body, payload) ||
+    (editing &&
+      (body.id !== original.id || body.createdAt !== original.createdAt))
+  ) {
+    throw new SleepApiError('unexpected', unexpectedMessage, response.status)
   }
   return body
+}
+
+function prepareSleepPayload(payload: SleepPayload): SleepPayload {
+  if (
+    typeof payload.sleepDate !== 'string' ||
+    !isRealCalendarDate(payload.sleepDate) ||
+    payload.sleepDate > getMadridToday() ||
+    !isHoursSlept(payload.hoursSlept) ||
+    !isSleepType(payload.sleepType)
+  ) {
+    throw new Error(
+      'No se puede enviar un registro de sueño con datos inválidos.',
+    )
+  }
+  // Explicit fields prevent userId or unrelated runtime values reaching the API.
+  return {
+    sleepDate: payload.sleepDate,
+    hoursSlept: payload.hoursSlept,
+    sleepType: payload.sleepType,
+  }
 }
 
 /** Never retry a POST automatically: a lost response does not mean it was not saved. */
@@ -136,20 +180,7 @@ export async function createSleep(
   payload: SleepPayload,
   options: { signal?: AbortSignal } = {},
 ): Promise<SleepRecord> {
-  if (
-    typeof payload.sleepDate !== 'string' ||
-    !isRealCalendarDate(payload.sleepDate) ||
-    !isHoursSlept(payload.hoursSlept)
-  ) {
-    throw new Error(
-      'No se puede enviar un registro de sueño con datos inválidos.',
-    )
-  }
-  // Explicit fields prevent userId or unrelated runtime values reaching the API.
-  const submitted: SleepPayload = {
-    sleepDate: payload.sleepDate,
-    hoursSlept: payload.hoursSlept,
-  }
+  const submitted = prepareSleepPayload(payload)
 
   return requestWithDeadline(
     (signal) => sendSleep(submitted, signal),
@@ -158,6 +189,31 @@ export async function createSleep(
       cancelled: CANCELLED_MESSAGE,
       timeout:
         'El servidor está tardando demasiado. No podemos confirmar el registro; comprueba la conexión antes de volver a enviarlo.',
+    },
+  )
+}
+
+/** A PATCH is confirmed only when its data and original identity match exactly. */
+export async function updateSleep(
+  original: SleepRecord,
+  payload: SleepPayload,
+  options: { signal?: AbortSignal } = {},
+): Promise<SleepRecord> {
+  if (!isSleepRecord(original)) {
+    throw new Error('No se puede editar un registro de sueño inválido.')
+  }
+  const submitted = prepareSleepPayload(payload)
+  const identity = { id: original.id, createdAt: original.createdAt }
+
+  // Do not retry automatically: the server may have saved a lost response.
+  return requestWithDeadline(
+    (signal) => sendSleep(submitted, signal, identity),
+    options,
+    {
+      cancelled:
+        'La solicitud se ha cancelado. No podemos confirmar los cambios.',
+      timeout:
+        'El servidor está tardando demasiado. No podemos confirmar los cambios; comprueba la conexión antes de volver a enviarlos.',
     },
   )
 }

@@ -4,9 +4,17 @@ import {
   summarizeSleep,
 } from '../lib/sleepStatistics'
 
-type SleepStatsCardsProps = { statistics: ReturnType<typeof summarizeSleep> }
+import type { summarizeSleepDays } from '../lib/sleepDailyStatistics'
 
-export default function SleepStatsCards({ statistics }: SleepStatsCardsProps) {
+type SleepStatsCardsProps = {
+  statistics: ReturnType<typeof summarizeSleep>
+  dailyStatistics: ReturnType<typeof summarizeSleepDays>
+}
+
+export default function SleepStatsCards({
+  statistics,
+  dailyStatistics,
+}: SleepStatsCardsProps) {
   const { count, total, average, max, min } = statistics
   if (average === null || !max || !min) return null
 
@@ -21,6 +29,26 @@ export default function SleepStatsCards({ statistics }: SleepStatsCardsProps) {
           <span className="sleep-stat-unit">horas</span>
           <span className="sleep-stat-detail">
             Solo los registros que has guardado.
+          </span>
+        </dd>
+      </div>
+      <div className="sleep-stat sleep-stat-daily">
+        <dt>Media diaria de sueño</dt>
+        <dd>
+          <span
+            className="sleep-stat-value"
+            data-testid="sleep-stat-daily-average"
+          >
+            {formatSleepHours(dailyStatistics.average!)}
+          </span>
+          <span className="sleep-stat-unit">horas por día con registros</span>
+          <span className="sleep-stat-detail">
+            <span data-testid="sleep-stat-days">
+              {dailyStatistics.dayCount}
+            </span>{' '}
+            {dailyStatistics.dayCount === 1
+              ? 'día con registros'
+              : 'días con registros'}
           </span>
         </dd>
       </div>

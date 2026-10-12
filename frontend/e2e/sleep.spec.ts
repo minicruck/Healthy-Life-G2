@@ -5,6 +5,7 @@ const endpoint = 'http://localhost:3001/api/sleep'
 const success = 'Horas de sueño registradas correctamente.'
 
 test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-12T12:00:00.000Z'))
   await page.route(endpoint, (route) =>
     route.request().method() === 'GET'
       ? route.fulfill({ status: 200, json: [] })
@@ -60,6 +61,7 @@ test('registra horas decimales y mantiene accesibilidad y diseño responsive', a
         id: 1,
         sleepDate: '2026-10-11',
         hoursSlept: 7.5,
+        sleepType: 'night',
         createdAt: '2026-10-11T15:00:00.000Z',
       },
     })
@@ -77,13 +79,18 @@ test('registra horas decimales y mantiene accesibilidad y diseño responsive', a
   expect(initialAxe.violations).toEqual([])
   await page.getByLabel('Fecha del sueño').fill('2026-10-11')
   await page.getByRole('spinbutton', { name: 'Horas dormidas' }).fill('7.5')
+  await page.getByLabel('Tipo de descanso').selectOption('night')
   await page.screenshot({
     path: testInfo.outputPath('sleep-form-controlled-mock.png'),
     fullPage: true,
   })
   await page.getByRole('button', { name: 'Guardar horas de sueño' }).click()
   await expect(page.getByText(success)).toBeVisible()
-  expect(payload).toEqual({ sleepDate: '2026-10-11', hoursSlept: 7.5 })
+  expect(payload).toEqual({
+    sleepDate: '2026-10-11',
+    hoursSlept: 7.5,
+    sleepType: 'night',
+  })
   await expect(page.locator('.feedback-success')).toHaveCSS('opacity', '1')
   const result = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
@@ -121,6 +128,7 @@ test('muestra errores de validación y de red sin perder las horas', async ({
     .getByRole('button', { name: 'Horas de sueño', exact: true })
     .click()
   const hours = page.getByRole('spinbutton', { name: 'Horas dormidas' })
+  await page.getByLabel('Tipo de descanso').selectOption('night')
   await hours.fill('0')
   await page.getByRole('button', { name: 'Guardar horas de sueño' }).click()
   await expect(hours).toHaveAttribute('aria-invalid', 'true')

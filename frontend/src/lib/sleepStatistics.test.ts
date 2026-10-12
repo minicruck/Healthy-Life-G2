@@ -13,6 +13,7 @@ function sleep(id: number, sleepDate: string, hoursSlept = 8): SleepRecord {
     id,
     sleepDate,
     hoursSlept,
+    sleepType: 'night',
     createdAt: '2026-10-11T08:30:00.000Z',
   }
 }

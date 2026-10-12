@@ -14,6 +14,7 @@ function record(
     id,
     sleepDate,
     hoursSlept,
+    sleepType: 'night',
     createdAt: `2026-10-11T12:${String(id).padStart(2, '0')}:00.000Z`,
   }
 }
@@ -119,6 +120,7 @@ async function assertAccessible(page: Page) {
 async function fillSleep(page: Page) {
   await page.getByLabel('Fecha del sueño').fill('2026-10-11')
   await page.getByRole('spinbutton', { name: 'Horas dormidas' }).fill('7.5')
+  await page.getByLabel('Tipo de descanso').selectOption('night')
 }
 
 test('consulta solo HU2 y filtra el mismo historial con límites inclusivos y sin agrupar fechas', async ({
@@ -444,7 +446,11 @@ test('un 201 confirmado conserva el éxito aunque falle la actualización del hi
     exact: true,
   })
   await expect(retry).toBeVisible()
-  expect(payload).toEqual({ sleepDate: '2026-10-11', hoursSlept: 7.5 })
+  expect(payload).toEqual({
+    sleepDate: '2026-10-11',
+    hoursSlept: 7.5,
+    sleepType: 'night',
+  })
   expect(gets).toBe(2)
   expect(posts).toBe(1)
   await assertAccessible(page)
@@ -499,7 +505,11 @@ test('espera la confirmación 201 antes de consultar de nuevo y bloquea envíos 
   await expect(page.getByText(success)).toHaveCount(0)
   expect(gets).toBe(1)
   expect(posts).toBe(1)
-  expect(payload).toEqual({ sleepDate: '2026-10-11', hoursSlept: 7.5 })
+  expect(payload).toEqual({
+    sleepDate: '2026-10-11',
+    hoursSlept: 7.5,
+    sleepType: 'night',
+  })
   release()
   await expect(page.getByText(success, { exact: true })).toBeVisible()
   await assertStats(page, {

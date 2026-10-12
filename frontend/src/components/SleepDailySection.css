@@ -1,0 +1,224 @@
+.sleep-daily-section {
+  margin-top: 48px;
+  padding-top: 36px;
+  border-top: 1px solid var(--line);
+}
+.sleep-daily-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 24px;
+}
+.sleep-daily-heading > p {
+  margin: 0;
+  max-width: 340px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.sleep-day-list {
+  margin-top: 24px;
+  display: grid;
+  gap: 12px;
+}
+.sleep-day {
+  border: 1px solid var(--line);
+  background: #f4f2eb;
+}
+.sleep-day > summary {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 22px 24px;
+  cursor: pointer;
+  list-style: none;
+  transition: background-color 160ms;
+}
+.sleep-day > summary::-webkit-details-marker {
+  display: none;
+}
+.sleep-day > summary:hover {
+  background: #eeebe1;
+}
+.sleep-day > summary:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.sleep-day-date {
+  flex: 1;
+  min-width: 0;
+}
+.sleep-day-date time {
+  display: block;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.sleep-day-date time::first-letter {
+  text-transform: uppercase;
+}
+.sleep-day-date > span {
+  display: block;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.sleep-day-total {
+  min-width: 95px;
+  text-align: right;
+  color: var(--red-dark);
+}
+.sleep-day-total > small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.sleep-day-total strong {
+  font:
+    400 38px/1 'Instrument Serif',
+    Georgia,
+    serif;
+  font-variant-numeric: tabular-nums;
+}
+.sleep-day-total strong span {
+  font:
+    400 13px/1 'DM Sans',
+    sans-serif;
+}
+.sleep-day-toggle {
+  color: var(--red-dark);
+  font-size: 22px;
+  font-weight: 400;
+}
+.sleep-day[open] .sleep-day-toggle {
+  transform: rotate(45deg);
+}
+.sleep-day-records {
+  padding: 0 24px 8px;
+  margin: 0;
+  list-style: none;
+}
+.sleep-day-records li {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.sleep-day-record-name {
+  flex: 1;
+  min-width: 0;
+}
+.sleep-type-badge {
+  display: inline-block;
+  padding: 5px 8px;
+  border-left: 3px solid;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.sleep-type-night {
+  background: #efe0de;
+  color: #702031;
+  border-color: #8f2035;
+}
+.sleep-type-nap {
+  background: #f0e4d4;
+  color: #774828;
+  border-color: #ad734a;
+}
+.sleep-type-other {
+  background: #e4e8dc;
+  color: #46513d;
+  border-color: #68745d;
+}
+.sleep-type-unclassified {
+  background: #e8e5df;
+  color: #56534c;
+  border-color: #8f8b82;
+}
+.sleep-day-record-name > small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin: 6px 0 0 11px;
+}
+.sleep-day-hours {
+  flex-shrink: 0;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.sleep-day-hours small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.sleep-day-notice {
+  padding: 12px 16px;
+  margin: 0 24px 14px;
+  border-left: 2px solid #ad734a;
+  background: #f0e4d4;
+  color: #694325;
+  font-size: 12px;
+  line-height: 1.7;
+}
+@media (max-width: 768px) {
+  .sleep-daily-heading {
+    align-items: start;
+    flex-direction: column;
+    gap: 16px;
+  }
+}
+@media (max-width: 600px) {
+  .sleep-daily-section {
+    margin-top: 32px;
+    padding-top: 28px;
+  }
+  .sleep-day > summary {
+    gap: 12px;
+    padding: 18px 14px;
+    flex-wrap: wrap;
+  }
+  .sleep-day-date {
+    flex-basis: calc(100% - 34px);
+    order: 0;
+  }
+  .sleep-day-date time {
+    font-size: 14px;
+  }
+  .sleep-day-toggle {
+    order: 1;
+  }
+  .sleep-day-total {
+    order: 2;
+    width: 100%;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .sleep-day-total > small {
+    margin: 0;
+  }
+  .sleep-day-records {
+    padding: 0 14px 4px;
+  }
+  .sleep-day-records li {
+    gap: 10px;
+  }
+  .sleep-day-notice {
+    margin-left: 14px;
+    margin-right: 14px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sleep-day-toggle {
+    transition: transform 180ms;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sleep-day > summary {
+    transition: none;
+  }
+}

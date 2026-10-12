@@ -6,6 +6,7 @@ const sleep: SleepRecord = {
   id: 1,
   sleepDate: '2026-10-09',
   hoursSlept: 7.5,
+  sleepType: 'night',
   createdAt: '2026-10-10T10:30:00.000Z',
 }
 const fetchMock = vi.fn<typeof fetch>()
@@ -16,6 +17,8 @@ const jsonResponse = (body: unknown, status = 200) =>
   })
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-12T12:00:00Z'))
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
   vi.stubEnv('VITE_API_BASE_URL', '')
@@ -52,6 +55,21 @@ describe('GET /api/sleep', () => {
   it('solo representa ausencia de datos con un array vacío confirmado por HTTP 200', async () => {
     fetchMock.mockResolvedValue(jsonResponse([]))
     await expect(getSleepRecords()).resolves.toEqual([])
+  })
+
+  it.each(['night', 'nap', 'other', null] as const)(
+    'acepta el tipo válido o null explícito para un registro histórico (%s)',
+    async (sleepType) => {
+      const record = { ...sleep, sleepType }
+      fetchMock.mockResolvedValue(jsonResponse([record]))
+      await expect(getSleepRecords()).resolves.toEqual([record])
+    },
+  )
+
+  it('conserva un registro histórico futuro y sin clasificar sin inventar un tipo', async () => {
+    const record = { ...sleep, sleepDate: '2099-12-31', sleepType: null }
+    fetchMock.mockResolvedValue(jsonResponse([record]))
+    await expect(getSleepRecords()).resolves.toEqual([record])
   })
 
   it('conserva el orden recibido y permite distintos registros del mismo día', async () => {
@@ -150,6 +168,14 @@ describe('GET /api/sleep', () => {
     { ...sleep, hoursSlept: 0 },
     { ...sleep, hoursSlept: -1 },
     { ...sleep, hoursSlept: 24.01 },
+    { ...sleep, sleepType: undefined },
+    { ...sleep, sleepType: '' },
+    { ...sleep, sleepType: 'unknown' },
+    { ...sleep, sleepType: 'NIGHT' },
+    { ...sleep, sleepType: ' night ' },
+    { ...sleep, sleepType: 1 },
+    { ...sleep, sleepType: true },
+    { ...sleep, sleepType: {} },
     { ...sleep, createdAt: undefined },
     { ...sleep, createdAt: null },
     { ...sleep, createdAt: '2026-10-10' },
@@ -176,7 +202,7 @@ describe('GET /api/sleep', () => {
   it('rechaza un número JSON cuyo exponente excede el rango finito', async () => {
     fetchMock.mockResolvedValue(
       new Response(
-        '[{"id":1,"sleepDate":"2026-10-09","hoursSlept":1e400,"createdAt":"2026-10-10T10:30:00Z"}]',
+        '[{"id":1,"sleepDate":"2026-10-09","hoursSlept":1e400,"sleepType":"night","createdAt":"2026-10-10T10:30:00Z"}]',
         { status: 200 },
       ),
     )

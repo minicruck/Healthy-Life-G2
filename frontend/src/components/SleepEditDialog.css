@@ -1,0 +1,125 @@
+.sleep-edit-dialog {
+  width: min(540px, calc(100% - 32px));
+  max-height: calc(100dvh - 40px);
+  margin: auto;
+  padding: 28px 32px 24px;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--red);
+  border-radius: 3px;
+  background: var(--paper, #fffefa);
+  color: var(--ink);
+  overflow-y: auto;
+  box-shadow: 0 18px 60px #1d252b26;
+}
+.sleep-edit-dialog::backdrop {
+  background: #20292399;
+}
+.sleep-edit-dialog[open] {
+  animation: sleep-edit-enter 180ms ease-out;
+}
+.sleep-edit-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.sleep-edit-heading p {
+  margin: 0 0 8px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--red);
+  font-weight: 700;
+}
+.sleep-edit-heading h2 {
+  margin: 0;
+  font:
+    400 36px/1.15 'Instrument Serif',
+    Georgia,
+    serif;
+}
+.sleep-edit-close {
+  min-width: 40px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 25px;
+}
+.sleep-edit-dialog > p {
+  margin: 14px 0 24px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.sleep-edit-dialog .form-field {
+  margin-bottom: 10px;
+}
+.sleep-edit-dialog .sleep-field-error {
+  min-height: 25px;
+}
+.sleep-edit-dialog .field-error {
+  font-size: 12px;
+}
+.sleep-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  margin-top: 12px;
+}
+.sleep-edit-cancel {
+  min-height: 46px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 500;
+}
+.sleep-edit-close:hover:not(:disabled),
+.sleep-edit-cancel:hover:not(:disabled) {
+  border-color: var(--red);
+  color: var(--red);
+  background: #a7193009;
+}
+.sleep-edit-dialog button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.sleep-edit-dialog button:focus-visible {
+  outline: 3px solid var(--red);
+  outline-offset: 3px;
+}
+@keyframes sleep-edit-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 480px) {
+  .sleep-edit-dialog {
+    padding: 20px;
+    max-height: calc(100dvh - 24px);
+  }
+  .sleep-edit-heading h2 {
+    font-size: 32px;
+  }
+  .sleep-edit-actions {
+    flex-direction: column-reverse;
+  }
+  .sleep-edit-actions button {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sleep-edit-dialog[open] {
+    animation: none;
+  }
+}

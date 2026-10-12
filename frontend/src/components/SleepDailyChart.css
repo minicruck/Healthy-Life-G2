@@ -1,0 +1,112 @@
+.sleep-daily-chart {
+  margin: 24px 0 0;
+  padding: 26px 26px 18px;
+  border: 1px solid var(--line);
+  background: #fffefa;
+}
+.sleep-daily-chart figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 20px;
+}
+.sleep-daily-chart h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+.sleep-daily-chart figcaption > span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.sleep-daily-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 22px;
+  padding: 0;
+  margin: 22px 0 12px;
+  list-style: none;
+  font-size: 11px;
+  color: var(--muted);
+}
+.sleep-daily-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.sleep-daily-legend i {
+  width: 9px;
+  height: 9px;
+}
+.sleep-daily-chart-canvas {
+  width: 100%;
+  height: 285px;
+  min-width: 0;
+}
+.sleep-daily-chart-canvas [role='application']:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+.sleep-daily-chart > p {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+.sleep-daily-tooltip {
+  min-width: 185px;
+  max-width: 235px;
+  padding: 14px;
+  background: #fffefa;
+  border: 1px solid #bdb9ad;
+  font-size: 12px;
+}
+.sleep-daily-tooltip p {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+.sleep-daily-tooltip strong {
+  display: block;
+  color: var(--red-dark);
+  font-size: 22px;
+  font-weight: 500;
+}
+.sleep-daily-tooltip small {
+  font-size: 11px;
+  font-weight: 400;
+}
+.sleep-daily-tooltip dl {
+  margin: 14px 0 10px;
+}
+.sleep-daily-tooltip dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 7px 0;
+}
+.sleep-daily-tooltip dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.sleep-daily-tooltip > span {
+  font-size: 11px;
+  color: var(--muted);
+}
+@media (max-width: 600px) {
+  .sleep-daily-chart {
+    padding: 20px 10px 16px;
+  }
+  .sleep-daily-chart figcaption,
+  .sleep-daily-chart > p,
+  .sleep-daily-legend {
+    margin-left: 5px;
+    margin-right: 5px;
+  }
+  .sleep-daily-chart-canvas {
+    height: 240px;
+  }
+  .sleep-daily-legend {
+    gap: 10px 16px;
+  }
+}
