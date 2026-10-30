@@ -2,7 +2,17 @@ import FieldError from './FieldError'
 import { useActivityForm } from '../hooks/useActivityForm'
 import { ACTIVITY_OPTIONS, type ActivityType } from '../types/activity'
 
-export default function ActivityForm() {
+type ActivityFormProps = {
+  onSaved?: () => void
+  showHistory: boolean
+  onToggleHistory: () => void
+}
+
+export default function ActivityForm({
+  onSaved,
+  showHistory,
+  onToggleHistory,
+}: ActivityFormProps) {
   const {
     values,
     submitting,
@@ -13,7 +23,7 @@ export default function ActivityForm() {
     blur,
     submit,
     visibleError,
-  } = useActivityForm()
+  } = useActivityForm({ onSaved })
   return (
     <section className="form-panel" aria-labelledby="form-heading">
       <div className="form-heading">
@@ -180,26 +190,35 @@ export default function ActivityForm() {
             <br />
             <strong>un registro a la vez.</strong>
           </p>
-          <button
-            className="save-button"
-            type="submit"
-            disabled={submitting}
-            aria-busy={submitting}
-          >
-            {submitting ? (
-              <>
-                <span className="button-spinner" aria-hidden="true" />
-                Guardando actividad…
-              </>
-            ) : (
-              <>
-                Guardar actividad
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 12h15m-6-6 6 6-6 6" />
-                </svg>
-              </>
-            )}
-          </button>
+          <div className="form-actions-group">
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={onToggleHistory}
+            >
+              {showHistory ? 'Ocultar historial' : 'Ver historial'}
+            </button>
+            <button
+              className="save-button"
+              type="submit"
+              disabled={submitting}
+              aria-busy={submitting}
+            >
+              {submitting ? (
+                <>
+                  <span className="button-spinner" aria-hidden="true" />
+                  Guardando actividad…
+                </>
+              ) : (
+                <>
+                  Guardar actividad
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 12h15m-6-6 6 6-6 6" />
+                  </svg>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </form>
     </section>

@@ -15,7 +15,7 @@ const emptyForm = (): ActivityFormValues => ({
   notes: '',
 })
 
-export function useActivityForm() {
+export function useActivityForm(options: { onSaved?: () => void } = {}) {
   const [values, setValues] = useState<ActivityFormValues>(emptyForm)
   const [touched, setTouched] = useState<Partial<Record<FieldName, boolean>>>(
     {},
@@ -68,6 +68,7 @@ export function useActivityForm() {
         kind: 'success',
         message: 'Actividad registrada correctamente.',
       })
+      options.onSaved?.()
       setValues(emptyForm())
       setTouched({})
     } catch (error) {
