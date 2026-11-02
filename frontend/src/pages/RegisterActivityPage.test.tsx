@@ -107,6 +107,44 @@ describe('Registrar actividad física', () => {
     }
   })
 
+  it('muestra el historial con registros ordenados de más reciente a más antiguo', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        [
+          { id: 2, activityType: 'walking', activityDate: '2026-10-09', notes: 'Paseo tardío', createdAt: '2026-10-09T20:00:00Z' },
+          { id: 1, activityType: 'running', activityDate: '2026-10-08', notes: 'Sesión matutina', createdAt: '2026-10-08T08:00:00Z' },
+        ],
+        200,
+      ),
+    )
+
+    render(<RegisterActivityPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Ver historial' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Historial de actividades' }),
+    ).toBeInTheDocument()
+    const listItems = screen.getAllByRole('listitem')
+    expect(listItems).toHaveLength(2)
+    expect(listItems[0]).toHaveTextContent('Paseo tardío')
+    expect(listItems[1]).toHaveTextContent('Sesión matutina')
+  })
+
+  it('muestra un mensaje cuando no hay registros disponibles', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockResolvedValueOnce(jsonResponse([], 200))
+
+    render(<RegisterActivityPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Ver historial' }))
+
+    expect(
+      await screen.findByText('No hay registros disponibles.'),
+    ).toBeInTheDocument()
+  })
+
   it('valida los campos obligatorios sin enviar y vincula los errores a sus campos', async () => {
     const user = userEvent.setup()
     render(<RegisterActivityPage />)

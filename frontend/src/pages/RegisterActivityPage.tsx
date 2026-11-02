@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import ActivityForm from '../components/ActivityForm'
+import ActivityHistory from '../components/ActivityHistory'
 import MovementIllustration from '../components/MovementIllustration'
 import SleepForm from '../components/SleepForm'
 import SleepDashboard from '../components/SleepDashboard'
@@ -10,8 +11,13 @@ export default function RegisterActivityPage() {
   )
   const isActivity = selectedHabit === 'activity'
   const [sleepRevision, setSleepRevision] = useState(0)
+  const [activityRevision, setActivityRevision] = useState(0)
+  const [showActivityHistory, setShowActivityHistory] = useState(false)
   const refreshSleep = useCallback(() => {
     setSleepRevision((revision) => revision + 1)
+  }, [])
+  const refreshActivities = useCallback(() => {
+    setActivityRevision((revision) => revision + 1)
   }, [])
 
   return (
@@ -102,7 +108,20 @@ export default function RegisterActivityPage() {
         </section>
 
         <div className="habit-panel" id="activity-panel" hidden={!isActivity}>
-          <ActivityForm />
+          <div className="activity-panel-stack">
+            <ActivityForm
+              onSaved={refreshActivities}
+              showHistory={showActivityHistory}
+              onToggleHistory={() =>
+                setShowActivityHistory((current) => !current)
+              }
+            />
+            <ActivityHistory
+              userId="demo-user"
+              active={isActivity && showActivityHistory}
+              revision={activityRevision}
+            />
+          </div>
         </div>
         <div className="habit-panel" id="sleep-panel" hidden={isActivity}>
           <SleepForm onSaved={refreshSleep} />

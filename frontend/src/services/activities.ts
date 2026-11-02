@@ -100,14 +100,73 @@ function httpError(status: number, body: unknown): ApiError {
   return new ApiError('http', message, status)
 }
 
+function getBaseUrl() {
+  return (
+    import.meta.env.VITE_API_BASE_URL?.trim() || 'http://localhost:3001'
+  ).replace(/\/+$/, '')
+}
+
+export async function listActivities(
+  userId = 'demo-user',
+): Promise<Activity[]> {
+  const response = await fetch(`${getBaseUrl()}/api/activities`, {
+    headers: {
+      Accept: 'application/json',
+      'X-User-Id': userId,
+    },
+  })
+
+  if (!response.ok) {
+    throw new ApiError(
+      'http',
+      'No se ha podido cargar el historial de actividades.',
+      response.status,
+    )
+  }
+
+  const body: unknown = await response.json()
+  if (!Array.isArray(body)) {
+    throw new ApiError(
+      'unexpected',
+      'El servidor ha devuelto un historial de actividades inesperado.',
+    )
+  }
+
+  return body.map((item) => {
+    if (!isRecord(item)) {
+      throw new ApiError('unexpected', 'El historial contiene registros inválidos.')
+    }
+
+    const activityType = item.activityType
+    if (
+      typeof item.id !== 'number' ||
+      !Number.isSafeInteger(item.id) ||
+      item.id <= 0 ||
+      typeof activityType !== 'string' ||
+      !ACTIVITY_OPTIONS.some(({ value }) => value === activityType) ||
+      typeof item.activityDate !== 'string' ||
+      !isRealCalendarDate(item.activityDate) ||
+      (item.notes !== null && typeof item.notes !== 'string') ||
+      !isUtcTimestamp(item.createdAt)
+    ) {
+      throw new ApiError('unexpected', 'El historial contiene registros inválidos.')
+    }
+
+    return {
+      id: item.id,
+      activityType: activityType as Activity['activityType'],
+      activityDate: item.activityDate,
+      notes: item.notes as string | null,
+      createdAt: item.createdAt,
+    }
+  })
+}
+
 async function sendActivity(
   payload: ActivityPayload,
   signal: AbortSignal,
 ): Promise<Activity> {
-  const baseUrl = (
-    import.meta.env.VITE_API_BASE_URL?.trim() || 'http://localhost:3001'
-  ).replace(/\/+$/, '')
-  const response = await fetch(`${baseUrl}/api/activities`, {
+  const response = await fetch(`${getBaseUrl()}/api/activities`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
