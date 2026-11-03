@@ -3,10 +3,21 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import type { DatabaseSync } from "node:sqlite";
-import { insertActivity, listActivities, type ActivityRow } from "./db.ts";
+import {
+  findHydrationGoal,
+  insertActivity,
+  listActivities,
+  saveHydrationGoal,
+  type ActivityRow,
+} from "./db.ts";
 import { validateNewActivity } from "./validation.ts";
 import { insertSleep, listSleep, findSleep, updateSleep, type SleepRow } from "./db.ts";
-import { validateNewSleep, validateSleepUpdate, parseSleepId } from "./validation.ts";
+import {
+  validateHydrationGoal,
+  validateNewSleep,
+  validateSleepUpdate,
+  parseSleepId,
+} from "./validation.ts";
 
 export interface AppConfig {
   db: DatabaseSync;
@@ -47,6 +58,28 @@ export function createApp({ db, demoUserId, corsOrigin }: AppConfig) {
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // HU9 — Configurar meta diaria de hidratación.
+  app.get("/api/hydration-goal", (_req, res) => {
+    const goal = findHydrationGoal(db, demoUserId);
+    res.json({
+      litersPerDay: goal?.liters_per_day ?? null,
+      updatedAt: goal?.updated_at ?? null,
+    });
+  });
+
+  app.put("/api/hydration-goal", (req, res) => {
+    const result = validateHydrationGoal(req.body);
+    if (!result.ok) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", result.message));
+      return;
+    }
+    const goal = saveHydrationGoal(db, demoUserId, result.value.litersPerDay);
+    res.json({
+      litersPerDay: goal.liters_per_day,
+      updatedAt: goal.updated_at,
+    });
   });
 
   // HU1 — Registrar actividad física

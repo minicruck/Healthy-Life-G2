@@ -64,6 +64,25 @@ export type SleepUpdateValidationResult =
   | { ok: true; value: { sleepDate: string; hoursSlept: number; sleepType: SleepType } }
   | { ok: false; message: string };
 
+export type HydrationGoalValidationResult =
+  | { ok: true; value: { litersPerDay: number } }
+  | { ok: false; message: string };
+
+export function validateHydrationGoal(body: unknown): HydrationGoalValidationResult {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return { ok: false, message: "El cuerpo de la petición debe ser un objeto JSON." };
+  }
+  const litersPerDay = (body as Record<string, unknown>).litersPerDay;
+  if (
+    typeof litersPerDay !== "number" ||
+    !Number.isFinite(litersPerDay) ||
+    litersPerDay <= 0
+  ) {
+    return { ok: false, message: "La meta diaria debe ser un número mayor que 0." };
+  }
+  return { ok: true, value: { litersPerDay } };
+}
+
 // HU2 usa componentes de calendario, sin conversiones UTC ni cambios en HU1.
 function isRealSleepDate(value: string): boolean {
   if (value.length !== 10 || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;

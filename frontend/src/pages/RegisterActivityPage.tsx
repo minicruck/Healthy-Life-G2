@@ -4,12 +4,16 @@ import ActivityHistory from '../components/ActivityHistory'
 import MovementIllustration from '../components/MovementIllustration'
 import SleepForm from '../components/SleepForm'
 import SleepDashboard from '../components/SleepDashboard'
+import HydrationGoalForm from '../components/HydrationGoalForm'
 
 export default function RegisterActivityPage() {
-  const [selectedHabit, setSelectedHabit] = useState<'activity' | 'sleep'>(
+  const [selectedHabit, setSelectedHabit] = useState<
+    'activity' | 'sleep' | 'hydration-goal'
+  >(
     'activity',
   )
   const isActivity = selectedHabit === 'activity'
+  const isSleep = selectedHabit === 'sleep'
   const [sleepRevision, setSleepRevision] = useState(0)
   const [activityRevision, setActivityRevision] = useState(0)
   const [showActivityHistory, setShowActivityHistory] = useState(false)
@@ -24,7 +28,13 @@ export default function RegisterActivityPage() {
     <div className="app-shell">
       <a
         className="skip-link"
-        href={isActivity ? '#activity-form' : '#sleep-form'}
+        href={
+          isActivity
+            ? '#activity-form'
+            : isSleep
+              ? '#sleep-form'
+              : '#hydration-goal'
+        }
       >
         Ir al formulario
       </a>
@@ -55,11 +65,19 @@ export default function RegisterActivityPage() {
         </button>
         <button
           type="button"
-          aria-pressed={!isActivity}
+          aria-pressed={isSleep}
           aria-controls="sleep-panel"
           onClick={() => setSelectedHabit('sleep')}
         >
           Horas de sueño
+        </button>
+        <button
+          type="button"
+          aria-pressed={selectedHabit === 'hydration-goal'}
+          aria-controls="hydration-goal-panel"
+          onClick={() => setSelectedHabit('hydration-goal')}
+        >
+          Meta de agua
         </button>
       </nav>
 
@@ -70,7 +88,13 @@ export default function RegisterActivityPage() {
           </p>
           <h1 id="page-title">
             Registrar <br />
-            <em>{isActivity ? 'actividad física' : 'horas de sueño'}</em>
+            <em>
+              {isActivity
+                ? 'actividad física'
+                : isSleep
+                  ? 'horas de sueño'
+                  : 'meta diaria de agua'}
+            </em>
           </h1>
           <p className="intro-copy">
             {isActivity ? (
@@ -79,10 +103,15 @@ export default function RegisterActivityPage() {
                 <br className="desktop-break" /> Un lugar para registrar tu
                 movimiento, actividad a actividad.
               </>
-            ) : (
+            ) : isSleep ? (
               <>
                 Anota cuándo y cuánto has dormido, de noche o en una siesta.
                 Puedes registrar varios descansos en un mismo día.
+              </>
+            ) : (
+              <>
+                Define un objetivo diario de agua para orientarte y convertir
+                la hidratación en un hábito.
               </>
             )}
           </p>
@@ -96,11 +125,17 @@ export default function RegisterActivityPage() {
                   <br />
                   Elige la actividad que mejor describa la tuya.
                 </>
-              ) : (
+              ) : isSleep ? (
                 <>
                   Tu descanso, día a día.
                   <br />
                   Registra más de 0 y hasta 24 horas.
+                </>
+              ) : (
+                <>
+                  Una meta orientativa para tu día.
+                  <br />
+                  Podrás cambiarla cuando quieras.
                 </>
               )}
             </p>
@@ -123,10 +158,15 @@ export default function RegisterActivityPage() {
             />
           </div>
         </div>
-        <div className="habit-panel" id="sleep-panel" hidden={isActivity}>
+        <div className="habit-panel" id="sleep-panel" hidden={!isSleep}>
           <SleepForm onSaved={refreshSleep} />
         </div>
-        <SleepDashboard active={!isActivity} revision={sleepRevision} />
+        {selectedHabit === 'hydration-goal' && (
+          <div className="habit-panel" id="hydration-goal-panel">
+            <HydrationGoalForm />
+          </div>
+        )}
+        <SleepDashboard active={isSleep} revision={sleepRevision} />
       </main>
 
       <footer className="site-footer">

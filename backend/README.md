@@ -4,6 +4,7 @@ API REST del módulo E2 de Healthy Life. Responsable: **Álvaro**.
 
 - **Tecnologías:** Node.js + Express + TypeScript, SQLite (módulo `node:sqlite` integrado en Node).
 - **Contratos con el frontend:** [`docs/hu1-api.md`](../docs/hu1-api.md) y [`docs/hu2-api.md`](../docs/hu2-api.md).
+- **Meta de hidratación:** [`docs/hu9-api.md`](../docs/hu9-api.md).
 
 ## Requisitos
 

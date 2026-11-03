@@ -38,6 +38,12 @@ export interface NewSleep {
   sleepType: SleepType | null;
 }
 
+export interface HydrationGoalRow {
+  user_id: string;
+  liters_per_day: number;
+  updated_at: string;
+}
+
 export function openDatabase(path: string): DatabaseSync {
   if (path !== ":memory:") {
     mkdirSync(dirname(path), { recursive: true });
@@ -64,12 +70,45 @@ export function openDatabase(path: string): DatabaseSync {
       sleep_type  TEXT
     )
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS hydration_goals (
+      user_id        TEXT PRIMARY KEY,
+      liters_per_day REAL NOT NULL,
+      updated_at     TEXT NOT NULL
+    )
+  `);
   // ALTER conserva las filas y asigna NULL a su nueva columna, sin inventar su clasificación.
   const sleepColumns = db.prepare("PRAGMA table_info(sleep_records)").all();
   if (!sleepColumns.some((column) => column.name === "sleep_type")) {
     db.exec("ALTER TABLE sleep_records ADD COLUMN sleep_type TEXT");
   }
+
   return db;
+}
+
+export function findHydrationGoal(
+  db: DatabaseSync,
+  userId: string,
+): HydrationGoalRow | undefined {
+  return db
+    .prepare("SELECT * FROM hydration_goals WHERE user_id = ?")
+    .get(userId) as unknown as HydrationGoalRow | undefined;
+}
+
+export function saveHydrationGoal(
+  db: DatabaseSync,
+  userId: string,
+  litersPerDay: number,
+): HydrationGoalRow {
+  const updatedAt = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO hydration_goals (user_id, liters_per_day, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      liters_per_day = excluded.liters_per_day,
+      updated_at = excluded.updated_at
+  `).run(userId, litersPerDay, updatedAt);
+  return findHydrationGoal(db, userId)!;
 }
 
 export function insertActivity(db: DatabaseSync, a: NewActivity): ActivityRow {
