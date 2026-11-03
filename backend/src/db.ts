@@ -44,6 +44,14 @@ export interface HydrationGoalRow {
   updated_at: string;
 }
 
+export interface WaterRow {
+  id: number;
+  user_id: string;
+  consumed_date: string;
+  amount_ml: number;
+  created_at: string;
+}
+
 export function openDatabase(path: string): DatabaseSync {
   if (path !== ":memory:") {
     mkdirSync(dirname(path), { recursive: true });
@@ -83,6 +91,15 @@ export function openDatabase(path: string): DatabaseSync {
     db.exec("ALTER TABLE sleep_records ADD COLUMN sleep_type TEXT");
   }
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS water_entries (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id       TEXT    NOT NULL,
+      consumed_date TEXT    NOT NULL,
+      amount_ml     INTEGER NOT NULL,
+      created_at    TEXT    NOT NULL
+    )
+  `);
   return db;
 }
 
@@ -177,4 +194,44 @@ export function updateSleep(
     .run(changes.sleepDate, changes.hoursSlept, changes.sleepType, id, userId);
   if (Number(result.changes) === 0) return undefined;
   return findSleep(db, id, userId);
+}
+
+export function insertWater(
+  db: DatabaseSync,
+  entry: { userId: string; consumedDate: string; amountMl: number },
+): WaterRow {
+  const createdAt = new Date().toISOString();
+  const result = db
+    .prepare(
+      `INSERT INTO water_entries (user_id, consumed_date, amount_ml, created_at)
+       VALUES (?, ?, ?, ?)`,
+    )
+    .run(entry.userId, entry.consumedDate, entry.amountMl, createdAt);
+
+  return db
+    .prepare("SELECT * FROM water_entries WHERE id = ?")
+    .get(Number(result.lastInsertRowid)) as unknown as WaterRow;
+}
+
+export function listWater(db: DatabaseSync, userId: string): WaterRow[] {
+  return db
+    .prepare(
+      `SELECT * FROM water_entries WHERE user_id = ?
+       ORDER BY consumed_date DESC, id DESC`,
+    )
+    .all(userId) as unknown as WaterRow[];
+}
+
+export function getWaterTotal(
+  db: DatabaseSync,
+  userId: string,
+  consumedDate: string,
+): number {
+  const row = db
+    .prepare(
+      `SELECT COALESCE(SUM(amount_ml), 0) AS total_ml
+       FROM water_entries WHERE user_id = ? AND consumed_date = ?`,
+    )
+    .get(userId, consumedDate) as { total_ml: number };
+  return row.total_ml;
 }

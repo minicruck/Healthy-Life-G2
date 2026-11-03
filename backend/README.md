@@ -5,6 +5,7 @@ API REST del módulo E2 de Healthy Life. Responsable: **Álvaro**.
 - **Tecnologías:** Node.js + Express + TypeScript, SQLite (módulo `node:sqlite` integrado en Node).
 - **Contratos con el frontend:** [`docs/hu1-api.md`](../docs/hu1-api.md) y [`docs/hu2-api.md`](../docs/hu2-api.md).
 - **Meta de hidratación:** [`docs/hu9-api.md`](../docs/hu9-api.md).
+- **Contratos con el frontend:** [`docs/hu1-api.md`](../docs/hu1-api.md), [`docs/hu2-api.md`](../docs/hu2-api.md) y [`docs/hu3-api.md`](../docs/hu3-api.md).
 
 ## Requisitos
 
@@ -84,6 +85,10 @@ El POST permite omitir `sleepType` para mantener clientes antiguos y guarda `NUL
 
 El PATCH utiliza una representación completa: exige los tres campos editables. Rechaza un identificador inválido con `400 / VALIDATION_ERROR`; un registro inexistente o de otro usuario recibe el mismo `404 / NOT_FOUND`. El SQL parametrizado restringe la actualización por identificador y usuario. No se insertan filas nuevas al editar ni se ofrece borrado. Los errores mantienen `{ "error": { "code", "message" } }`; JSON incorrecto, peticiones demasiado grandes y fallos internos conservan los estados `400`, `413` y `500` comunes.
 
+## HU3 — Registrar consumo diario de agua
+
+El contrato está documentado en [`docs/hu3-api.md`](../docs/hu3-api.md). `POST /api/water` persiste una cantidad entera positiva de mililitros para el día actual de `Europe/Madrid` y devuelve el total acumulado. `GET /api/water` devuelve el historial persistido del usuario configurado, ordenado por fecha e identificador descendentes. `GET /api/water/today` devuelve el total del día o cero si aún no hay consumos. Las cantidades inválidas se rechazan con `400 / VALIDATION_ERROR`.
+
 ### Fechas y compatibilidad histórica
 
 POST y PATCH rechazan fechas posteriores a **hoy en Europe/Madrid**, también cuando un cliente antiguo omite el tipo. La zona es fija y no depende del reloj local de Docker o de la configuración de zona del proceso. Se comparan fechas de calendario, sin desplazar `sleepDate` mediante conversiones UTC; `createdAt` sigue siendo un instante UTC. El backend es la autoridad final y no exige una nueva variable de entorno.
@@ -125,7 +130,7 @@ npm test
 npm run typecheck
 ```
 
-La suite incluye HU1 y HU2: catálogo y compatibilidad sin tipo, fechas pasadas/actuales/futuras, calendario de Madrid cerca de medianoche y cambios de horario, registros repetidos por fecha, edición y aislamiento por usuario, conservación de `id`/`createdAt`, errores comunes y migración repetible. Las pruebas de persistencia utilizan SQLite real en archivos temporales, los cierran y reabren, y verifican los datos históricos; no usan el archivo de desarrollo ni el volumen Docker.
+La suite incluye HU1, HU2 y HU3: catálogo y compatibilidad sin tipo, fechas pasadas/actuales/futuras, calendario de Madrid cerca de medianoche y cambios de horario, registros repetidos por fecha, edición y aislamiento por usuario, suma diaria de agua, conservación de `id`/`createdAt`, errores comunes y migración repetible. Las pruebas de persistencia utilizan SQLite real en archivos temporales, los cierran y reabren, y verifican los datos históricos; no usan el archivo de desarrollo ni el volumen Docker.
 
 ### Actualizar Docker en Windows después de revisar la rama
 

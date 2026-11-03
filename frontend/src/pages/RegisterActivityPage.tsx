@@ -1,19 +1,21 @@
 import { useCallback, useState } from 'react'
 import ActivityForm from '../components/ActivityForm'
 import ActivityHistory from '../components/ActivityHistory'
-import MovementIllustration from '../components/MovementIllustration'
-import SleepForm from '../components/SleepForm'
-import SleepDashboard from '../components/SleepDashboard'
 import HydrationGoalForm from '../components/HydrationGoalForm'
+import MovementIllustration from '../components/MovementIllustration'
+import SleepDashboard from '../components/SleepDashboard'
+import SleepForm from '../components/SleepForm'
+import WaterForm from '../components/WaterForm'
+
+type Habit = 'activity' | 'sleep' | 'hydration-goal' | 'water'
 
 export default function RegisterActivityPage() {
-  const [selectedHabit, setSelectedHabit] = useState<
-    'activity' | 'sleep' | 'hydration-goal'
-  >(
-    'activity',
-  )
+  const [selectedHabit, setSelectedHabit] = useState<Habit>('activity')
   const isActivity = selectedHabit === 'activity'
   const isSleep = selectedHabit === 'sleep'
+  const isHydration =
+    selectedHabit === 'hydration-goal' || selectedHabit === 'water'
+  const isWater = selectedHabit === 'water'
   const [sleepRevision, setSleepRevision] = useState(0)
   const [activityRevision, setActivityRevision] = useState(0)
   const [showActivityHistory, setShowActivityHistory] = useState(false)
@@ -33,7 +35,9 @@ export default function RegisterActivityPage() {
             ? '#activity-form'
             : isSleep
               ? '#sleep-form'
-              : '#hydration-goal'
+              : isWater
+                ? '#water-form'
+                : '#hydration-goal'
         }
       >
         Ir al formulario
@@ -50,7 +54,9 @@ export default function RegisterActivityPage() {
         </div>
         <div className="header-context">
           <span>SCRUM &amp; RUN</span>
-          <span>E2 · Hábitos saludables</span>
+          <span>
+            {isHydration ? 'E1 · Hidratación' : 'E2 · Hábitos saludables'}
+          </span>
         </div>
       </header>
 
@@ -79,12 +85,21 @@ export default function RegisterActivityPage() {
         >
           Meta de agua
         </button>
+        <button
+          type="button"
+          aria-pressed={isWater}
+          aria-controls="water-panel"
+          onClick={() => setSelectedHabit('water')}
+        >
+          Agua
+        </button>
       </nav>
 
       <main className="workspace">
         <section className="introduction" aria-labelledby="page-title">
           <p className="eyebrow">
-            <span className="section-marker">E2</span> SEGUIMIENTO DE HÁBITOS
+            <span className="section-marker">{isHydration ? 'E1' : 'E2'}</span>{' '}
+            {isHydration ? 'HIDRATACIÓN' : 'SEGUIMIENTO DE HÁBITOS'}
           </p>
           <h1 id="page-title">
             Registrar <br />
@@ -93,7 +108,9 @@ export default function RegisterActivityPage() {
                 ? 'actividad física'
                 : isSleep
                   ? 'horas de sueño'
-                  : 'meta diaria de agua'}
+                  : isWater
+                    ? 'consumo de agua'
+                    : 'meta diaria de agua'}
             </em>
           </h1>
           <p className="intro-copy">
@@ -108,10 +125,15 @@ export default function RegisterActivityPage() {
                 Anota cuándo y cuánto has dormido, de noche o en una siesta.
                 Puedes registrar varios descansos en un mismo día.
               </>
+            ) : isWater ? (
+              <>
+                Registra cada consumo de agua y consulta tu historial para
+                seguir tu hidratación día a día.
+              </>
             ) : (
               <>
-                Define un objetivo diario de agua para orientarte y convertir
-                la hidratación en un hábito.
+                Define un objetivo diario de agua para orientarte y convertir la
+                hidratación en un hábito.
               </>
             )}
           </p>
@@ -130,6 +152,12 @@ export default function RegisterActivityPage() {
                   Tu descanso, día a día.
                   <br />
                   Registra más de 0 y hasta 24 horas.
+                </>
+              ) : isWater ? (
+                <>
+                  Cada registro queda guardado.
+                  <br />
+                  Consulta tus consumos cuando quieras.
                 </>
               ) : (
                 <>
@@ -161,17 +189,23 @@ export default function RegisterActivityPage() {
         <div className="habit-panel" id="sleep-panel" hidden={!isSleep}>
           <SleepForm onSaved={refreshSleep} />
         </div>
-        {selectedHabit === 'hydration-goal' && (
-          <div className="habit-panel" id="hydration-goal-panel">
-            <HydrationGoalForm />
-          </div>
-        )}
+        <div
+          className="habit-panel"
+          id="hydration-goal-panel"
+          hidden={selectedHabit !== 'hydration-goal'}
+        >
+          {selectedHabit === 'hydration-goal' && <HydrationGoalForm />}
+        </div>
+        <div className="habit-panel" id="water-panel" hidden={!isWater}>
+          <WaterForm active={isWater} />
+        </div>
         <SleepDashboard active={isSleep} revision={sleepRevision} />
       </main>
 
       <footer className="site-footer">
         <span>
-          HEALTHY LIFE <span className="footer-separator">/</span> Módulo E2
+          HEALTHY LIFE <span className="footer-separator">/</span> Módulo{' '}
+          {isHydration ? 'E1' : 'E2'}
         </span>
         <span>
           Proyecto académico · Universidad Rey Juan Carlos{' '}

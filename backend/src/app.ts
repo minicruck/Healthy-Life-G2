@@ -1,23 +1,37 @@
 // Definición de la API. Separada de server.ts para poder probarla sin
 // arrancar un servidor real (los tests usan una base de datos en memoria).
-import express, { type NextFunction, type Request, type Response } from "express";
+import express, {
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import cors from "cors";
 import type { DatabaseSync } from "node:sqlite";
 import {
   findHydrationGoal,
   insertActivity,
+  insertSleep,
+  insertWater,
   listActivities,
+  listSleep,
+  listWater,
+  findSleep,
+  updateSleep,
+  getWaterTotal,
   saveHydrationGoal,
   type ActivityRow,
+  type SleepRow,
+  type WaterRow,
 } from "./db.ts";
-import { validateNewActivity } from "./validation.ts";
-import { insertSleep, listSleep, findSleep, updateSleep, type SleepRow } from "./db.ts";
 import {
-  validateHydrationGoal,
-  validateNewSleep,
-  validateSleepUpdate,
   parseSleepId,
+  validateHydrationGoal,
+  validateNewActivity,
+  validateNewSleep,
+  validateNewWater,
+  validateSleepUpdate,
 } from "./validation.ts";
+import { getMadridToday } from "./sleepCalendar.ts";
 
 export interface AppConfig {
   db: DatabaseSync;
@@ -47,6 +61,15 @@ function sleepToApi(row: SleepRow) {
     sleepDate: row.sleep_date,
     hoursSlept: row.hours_slept,
     sleepType: row.sleep_type,
+    createdAt: row.created_at,
+  };
+}
+
+function waterToApi(row: WaterRow) {
+  return {
+    id: row.id,
+    amountMl: row.amount_ml,
+    consumedDate: row.consumed_date,
     createdAt: row.created_at,
   };
 }
@@ -118,11 +141,20 @@ export function createApp({ db, demoUserId, corsOrigin }: AppConfig) {
   app.patch("/api/sleep/:id", (req, res) => {
     const id = parseSleepId(req.params.id);
     if (id === null) {
-      res.status(400).json(errorBody("VALIDATION_ERROR", "El identificador del registro no es válido."));
+      res
+        .status(400)
+        .json(
+          errorBody(
+            "VALIDATION_ERROR",
+            "El identificador del registro no es válido.",
+          ),
+        );
       return;
     }
     if (!findSleep(db, id, demoUserId)) {
-      res.status(404).json(errorBody("NOT_FOUND", "Registro de sueño no encontrado."));
+      res
+        .status(404)
+        .json(errorBody("NOT_FOUND", "Registro de sueño no encontrado."));
       return;
     }
     const result = validateSleepUpdate(req.body);
@@ -132,10 +164,40 @@ export function createApp({ db, demoUserId, corsOrigin }: AppConfig) {
     }
     const row = updateSleep(db, id, demoUserId, result.value);
     if (!row) {
-      res.status(404).json(errorBody("NOT_FOUND", "Registro de sueño no encontrado."));
+      res
+        .status(404)
+        .json(errorBody("NOT_FOUND", "Registro de sueño no encontrado."));
       return;
     }
     res.json(sleepToApi(row));
+  });
+
+  // HU3 — Registrar consumo diario de agua.
+  app.post("/api/water", (req, res) => {
+    const result = validateNewWater(req.body);
+    if (!result.ok) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", result.message));
+      return;
+    }
+    const consumedDate = getMadridToday();
+    const row = insertWater(db, {
+      userId: demoUserId,
+      consumedDate,
+      ...result.value,
+    });
+    res.status(201).json({
+      ...waterToApi(row),
+      dailyTotalMl: getWaterTotal(db, demoUserId, consumedDate),
+    });
+  });
+
+  app.get("/api/water", (_req, res) => {
+    res.json(listWater(db, demoUserId).map(waterToApi));
+  });
+
+  app.get("/api/water/today", (_req, res) => {
+    const date = getMadridToday();
+    res.json({ date, totalMl: getWaterTotal(db, demoUserId, date) });
   });
 
   app.use("/api", (_req, res) => {
@@ -146,15 +208,23 @@ export function createApp({ db, demoUserId, corsOrigin }: AppConfig) {
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     const e = err as { type?: string; status?: number };
     if (e?.type === "entity.parse.failed") {
-      res.status(400).json(errorBody("VALIDATION_ERROR", "El cuerpo no es un JSON válido."));
+      res
+        .status(400)
+        .json(errorBody("VALIDATION_ERROR", "El cuerpo no es un JSON válido."));
       return;
     }
     if (e?.type === "entity.too.large") {
-      res.status(413).json(errorBody("PAYLOAD_TOO_LARGE", "La petición es demasiado grande."));
+      res
+        .status(413)
+        .json(
+          errorBody("PAYLOAD_TOO_LARGE", "La petición es demasiado grande."),
+        );
       return;
     }
     console.error(err);
-    res.status(500).json(errorBody("INTERNAL_ERROR", "Error interno del servidor."));
+    res
+      .status(500)
+      .json(errorBody("INTERNAL_ERROR", "Error interno del servidor."));
   });
 
   return app;
