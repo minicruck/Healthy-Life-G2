@@ -194,7 +194,7 @@ Para preparar la exposición, consulta [la explicación para defender HU1 en cla
 
 ## HU2 — Registrar horas de sueño (SCRUM-2)
 
-La misma aplicación permite alternar entre actividad física y sueño sin perder los borradores. El formulario de HU2 envía tres campos obligatorios:
+La misma aplicación permite alternar entre actividad física, sueño y agua sin perder los borradores. El formulario de HU2 envía tres campos obligatorios:
 
 | Campo            | Reglas                                                                                         |
 | ---------------- | ---------------------------------------------------------------------------------------------- |
@@ -203,6 +203,12 @@ La misma aplicación permite alternar entre actividad física y sueño sin perde
 | Tipo de descanso | `night` (Sueño nocturno), `nap` (Siesta) u `other` (Otro). Se debe elegir una opción.          |
 
 El contrato completo está en [`docs/hu2-api.md`](../docs/hu2-api.md). `POST /api/sleep` registra y `GET /api/sleep` consulta los datos del mismo usuario configurado en el backend. No se envía `userId`.
+
+## HU3 — Registrar consumo diario de agua (SCRUM-3)
+
+
+
+El contrato completo está en [`docs/hu3-api.md`](../docs/hu3-api.md). El formulario utiliza `POST /api/water` para añadir un consumo; la sección de historial consulta `GET /api/water` y muestra cada registro en una lista sencilla por fecha y cantidad. El total diario se consulta en `GET /api/water/today`.
 
 Se permiten varios descansos de la misma fecha, incluidas varias siestas. Cada fila conserva su identificador, fecha de creación y horas. Los datos históricos sin clasificación llegan como `sleepType: null` y se muestran como **Sin clasificar**, sin atribuirles un tipo ficticio. El POST permite omitir el tipo solo para conservar compatibilidad con clientes antiguos; el formulario actualizado siempre exige seleccionarlo.
 

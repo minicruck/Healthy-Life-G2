@@ -846,7 +846,7 @@ textarea:disabled {
   }
 }
 
-/* Selector compartido de HU1 y HU2. */
+/* Selector compartido de hábitos registrados. */
 .habit-selector {
   display: flex;
   flex-wrap: wrap;
@@ -900,6 +900,75 @@ textarea:disabled {
 }
 .habit-panel {
   min-width: 0;
+}
+.water-panel-stack {
+  min-width: 0;
+}
+.water-summary {
+  margin-bottom: 24px;
+  padding: 14px 16px;
+  border-left: 2px solid #526345;
+  background: #edf2e8;
+}
+.water-summary p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.water-summary strong {
+  margin-left: 8px;
+  color: #34492b;
+  font-size: 19px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.water-summary .water-summary-error {
+  color: #8e162a;
+}
+.water-history {
+  margin-top: 20px;
+  border-top: 3px solid #526345;
+}
+.water-history .form-heading {
+  margin-bottom: 0;
+}
+.water-history .form-heading > span {
+  white-space: nowrap;
+}
+.water-history-empty,
+.water-history > p,
+.water-history-error > p {
+  margin: 20px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.water-history-error > p {
+  color: #8e162a;
+}
+.water-history-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.water-history-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.water-history-list li:last-child {
+  border-bottom: 0;
+}
+.water-history-list time {
+  color: var(--muted);
+}
+.water-history-list strong {
+  color: #34492b;
+  font-variant-numeric: tabular-nums;
 }
 /* Reserva el espacio del error para que Guardar no se desplace al salir del campo. */
 .sleep-field-error {

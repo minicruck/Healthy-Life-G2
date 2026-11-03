@@ -140,3 +140,25 @@ export function parseSleepId(value: string): number | null {
   const id = Number(value);
   return Number.isSafeInteger(id) && id > 0 && String(id) === value ? id : null;
 }
+
+export type WaterValidationResult =
+  | { ok: true; value: { amountMl: number } }
+  | { ok: false; message: string };
+
+export function validateNewWater(body: unknown): WaterValidationResult {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return { ok: false, message: "El cuerpo de la petición debe ser un objeto JSON." };
+  }
+  const { amountMl } = body as Record<string, unknown>;
+  if (
+    typeof amountMl !== "number" ||
+    !Number.isSafeInteger(amountMl) ||
+    amountMl <= 0
+  ) {
+    return {
+      ok: false,
+      message: "La cantidad de agua debe ser un número entero de mililitros mayor que 0.",
+    };
+  }
+  return { ok: true, value: { amountMl } };
+}
