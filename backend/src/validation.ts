@@ -141,6 +141,26 @@ export function parseSleepId(value: string): number | null {
   return Number.isSafeInteger(id) && id > 0 && String(id) === value ? id : null;
 }
 
+export type TrainingGoalValidationResult =
+  | { ok: true; value: { daysPerWeek: number } }
+  | { ok: false; message: string };
+
+export function validateTrainingGoal(body: unknown): TrainingGoalValidationResult {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return { ok: false, message: "El cuerpo de la petición debe ser un objeto JSON." };
+  }
+  const daysPerWeek = (body as Record<string, unknown>).daysPerWeek;
+  if (
+    typeof daysPerWeek !== "number" ||
+    !Number.isInteger(daysPerWeek) ||
+    daysPerWeek < 1 ||
+    daysPerWeek > 7
+  ) {
+    return { ok: false, message: "El objetivo debe ser un número entero de días entre 1 y 7." };
+  }
+  return { ok: true, value: { daysPerWeek } };
+}
+
 export type WaterValidationResult =
   | { ok: true; value: { amountMl: number } }
   | { ok: false; message: string };
