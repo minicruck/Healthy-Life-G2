@@ -74,14 +74,6 @@ export default function RegisterActivityPage() {
         </button>
         <button
           type="button"
-          aria-pressed={selectedHabit === 'training-goal'}
-          aria-controls="training-goal-panel"
-          onClick={() => setSelectedHabit('training-goal')}
-        >
-          Objetivo de entrenamiento
-        </button>
-        <button
-          type="button"
           aria-pressed={isSleep}
           aria-controls="sleep-panel"
           onClick={() => setSelectedHabit('sleep')}
@@ -103,6 +95,14 @@ export default function RegisterActivityPage() {
           onClick={() => setSelectedHabit('water')}
         >
           Agua
+        </button>
+        <button
+          type="button"
+          aria-pressed={selectedHabit === 'training-goal'}
+          aria-controls="training-goal-panel"
+          onClick={() => setSelectedHabit('training-goal')}
+        >
+          Objetivo de entrenamiento
         </button>
       </nav>
 
