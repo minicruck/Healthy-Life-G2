@@ -29,6 +29,9 @@ beforeEach(() => {
   historyRequestCount = 0
   getMock.mockImplementation(async (input) => {
     const url = String(input)
+    if (url.endsWith('/api/hydration-goal')) {
+      return jsonResponse({ litersPerDay: null, updatedAt: null })
+    }
     if (url.endsWith('/api/water/today')) {
       totalRequestCount += 1
       return jsonResponse({
@@ -72,6 +75,18 @@ describe('HU3 en la aplicación de Healthy Life', () => {
       'aria-pressed',
       'true',
     )
+    expect(
+      screen.queryByRole('button', { name: 'Meta de agua' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Objetivo diario' }),
+    ).toBeVisible()
+    expect(
+      await screen.findByRole('spinbutton', { name: /Litros de agua al día/ }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'Consumo de hoy' }),
+    ).toBeVisible()
     expect(
       screen.getByRole('link', { name: 'Ir al formulario' }),
     ).toHaveAttribute('href', '#water-form')
