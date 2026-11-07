@@ -107,7 +107,56 @@ export function openDatabase(path: string): DatabaseSync {
       updated_at    TEXT NOT NULL
     )
   `);
+  // HU10 — un único objetivo mínimo de horas de sueño por usuario.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sleep_goals (
+      user_id    TEXT PRIMARY KEY,
+      min_hours  REAL NOT NULL CHECK (min_hours > 0 AND min_hours <= 24),
+      updated_at TEXT NOT NULL
+    )
+  `);
   return db;
+}
+
+export interface SleepGoalRow {
+  user_id: string;
+  min_hours: number;
+  updated_at: string;
+}
+
+export function findSleepGoal(db: DatabaseSync, userId: string): SleepGoalRow | undefined {
+  return db.prepare("SELECT * FROM sleep_goals WHERE user_id = ?").get(userId) as
+    | SleepGoalRow
+    | undefined;
+}
+
+export function saveSleepGoal(db: DatabaseSync, userId: string, minHours: number): SleepGoalRow {
+  const updatedAt = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO sleep_goals (user_id, min_hours, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      min_hours = excluded.min_hours,
+      updated_at = excluded.updated_at
+  `).run(userId, minHours, updatedAt);
+  return findSleepGoal(db, userId)!;
+}
+
+/** Suma las horas de todos los descansos (noche, siesta, otro) de cada fecha del rango. */
+export function sumSleepByDay(
+  db: DatabaseSync,
+  userId: string,
+  fromDate: string,
+  toDate: string,
+): { date: string; totalHours: number }[] {
+  const rows = db.prepare(`
+    SELECT sleep_date AS date, SUM(hours_slept) AS total_hours
+    FROM sleep_records
+    WHERE user_id = ? AND sleep_date >= ? AND sleep_date <= ?
+    GROUP BY sleep_date
+    ORDER BY sleep_date DESC
+  `).all(userId, fromDate, toDate) as { date: string; total_hours: number }[];
+  return rows.map((row) => ({ date: row.date, totalHours: row.total_hours }));
 }
 
 export interface TrainingGoalRow {
