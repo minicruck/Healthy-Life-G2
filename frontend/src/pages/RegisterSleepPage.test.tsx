@@ -19,6 +19,21 @@ const jsonResponse = (body: unknown, status = 201) =>
     headers: { 'Content-Type': 'application/json' },
   })
 
+// HU10: el aviso del objetivo de sueño consulta /api/sleep-goal. Se responde aparte
+// para que los recuentos de peticiones de HU2 sigan midiendo solo /api/sleep.
+const noSleepGoal = {
+  minHours: null,
+  updatedAt: null,
+  fromDate: '2026-10-06',
+  toDate: '2026-10-12',
+  days: [],
+  latest: null,
+  checked: null,
+  alert: false,
+}
+const isSleepGoalRequest = (input: RequestInfo | URL) =>
+  String(input instanceof Request ? input.url : input).includes('/api/sleep-goal')
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-12T12:00:00.000Z'))
@@ -27,9 +42,11 @@ beforeEach(() => {
   getFetchMock.mockImplementation(async () => jsonResponse([], 200))
   // Keep the original assertions specific to POST, independently of dashboard reads.
   vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) =>
-    init?.method === 'POST'
-      ? fetchMock(input, init)
-      : getFetchMock(input, init),
+    isSleepGoalRequest(input)
+      ? Promise.resolve(jsonResponse(noSleepGoal, 200))
+      : init?.method === 'POST'
+        ? fetchMock(input, init)
+        : getFetchMock(input, init),
   )
 })
 afterEach(() => {

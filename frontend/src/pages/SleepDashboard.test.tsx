@@ -34,6 +34,21 @@ const record = (
 })
 const currentRecord = record(1, '2026-10-11', 8)
 
+// HU10: el aviso del objetivo de sueño consulta /api/sleep-goal. Se responde aparte
+// para que los recuentos de peticiones de HU2 sigan midiendo solo /api/sleep.
+const noSleepGoal = {
+  minHours: null,
+  updatedAt: null,
+  fromDate: '2026-10-05',
+  toDate: '2026-10-11',
+  days: [],
+  latest: null,
+  checked: null,
+  alert: false,
+}
+const isSleepGoalRequest = (input: RequestInfo | URL) =>
+  String(input instanceof Request ? input.url : input).includes('/api/sleep-goal')
+
 beforeEach(() => {
   // Only freeze Date: user events and async request settling keep real timers.
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -43,7 +58,11 @@ beforeEach(() => {
   postMock.mockReset()
   getMock.mockImplementation(async () => jsonResponse([]))
   fetchMock.mockImplementation((input, init) =>
-    init?.method === 'POST' ? postMock(input, init) : getMock(input, init),
+    isSleepGoalRequest(input)
+      ? Promise.resolve(jsonResponse(noSleepGoal))
+      : init?.method === 'POST'
+        ? postMock(input, init)
+        : getMock(input, init),
   )
   vi.stubGlobal('fetch', fetchMock)
   vi.stubEnv('VITE_API_BASE_URL', '')

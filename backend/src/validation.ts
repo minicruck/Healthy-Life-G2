@@ -141,6 +141,65 @@ export function parseSleepId(value: string): number | null {
   return Number.isSafeInteger(id) && id > 0 && String(id) === value ? id : null;
 }
 
+export type TrainingGoalValidationResult =
+  | { ok: true; value: { daysPerWeek: number } }
+  | { ok: false; message: string };
+
+export function validateTrainingGoal(body: unknown): TrainingGoalValidationResult {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return { ok: false, message: "El cuerpo de la petición debe ser un objeto JSON." };
+  }
+  const daysPerWeek = (body as Record<string, unknown>).daysPerWeek;
+  if (
+    typeof daysPerWeek !== "number" ||
+    !Number.isInteger(daysPerWeek) ||
+    daysPerWeek < 1 ||
+    daysPerWeek > 7
+  ) {
+    return { ok: false, message: "El objetivo debe ser un número entero de días entre 1 y 7." };
+  }
+  return { ok: true, value: { daysPerWeek } };
+}
+
+export type SleepGoalValidationResult =
+  | { ok: true; value: { minHours: number } }
+  | { ok: false; message: string };
+
+// HU10 — el objetivo mínimo de sueño es un número de horas mayor que 0 y como máximo 24.
+export function validateSleepGoal(body: unknown): SleepGoalValidationResult {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return { ok: false, message: "El cuerpo de la petición debe ser un objeto JSON." };
+  }
+  const minHours = (body as Record<string, unknown>).minHours;
+  if (
+    typeof minHours !== "number" ||
+    !Number.isFinite(minHours) ||
+    minHours <= 0 ||
+    minHours > 24
+  ) {
+    return {
+      ok: false,
+      message: "El objetivo de sueño debe ser un número de horas mayor que 0 y como máximo 24.",
+    };
+  }
+  return { ok: true, value: { minHours } };
+}
+
+/** HU10 — ?date= opcional: una fecha real YYYY-MM-DD que no sea posterior a hoy. */
+export function validateSleepCheckDate(
+  value: unknown,
+  today: string,
+): { ok: true; value: string | undefined } | { ok: false; message: string } {
+  if (value === undefined) return { ok: true, value: undefined };
+  if (typeof value !== "string" || !isRealSleepDate(value)) {
+    return { ok: false, message: "La fecha que se quiere comprobar no es válida." };
+  }
+  if (value > today) {
+    return { ok: false, message: "No se puede comprobar el objetivo de una fecha futura." };
+  }
+  return { ok: true, value };
+}
+
 export type WaterValidationResult =
   | { ok: true; value: { amountMl: number } }
   | { ok: false; message: string };

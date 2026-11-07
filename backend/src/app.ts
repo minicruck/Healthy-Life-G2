@@ -32,6 +32,16 @@ import {
   validateSleepUpdate,
 } from "./validation.ts";
 import { getMadridToday } from "./sleepCalendar.ts";
+import { getTrainingWeek } from "./trainingWeek.ts";
+import {
+  countTrainingDays,
+  findTrainingGoal,
+  saveTrainingGoal,
+} from "./db.ts";
+import { validateTrainingGoal } from "./validation.ts";
+import { saveSleepGoal } from "./db.ts";
+import { validateSleepCheckDate, validateSleepGoal } from "./validation.ts";
+import { buildSleepGoalSummary } from "./sleepGoal.ts";
 
 export interface AppConfig {
   db: DatabaseSync;
@@ -81,6 +91,59 @@ export function createApp({ db, demoUserId, corsOrigin }: AppConfig) {
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // HU8 — Objetivo de días distintos con actividad en la semana actual de Madrid.
+  function trainingGoalSummary() {
+    const today = getMadridToday();
+    const { weekStart, weekEnd } = getTrainingWeek(today);
+    const goal = findTrainingGoal(db, demoUserId);
+    const completedDays = countTrainingDays(db, demoUserId, weekStart, today);
+    return {
+      daysPerWeek: goal?.days_per_week ?? null,
+      completedDays,
+      remainingDays:
+        goal === undefined ? null : Math.max(0, goal.days_per_week - completedDays),
+      weekStart,
+      weekEnd,
+      updatedAt: goal?.updated_at ?? null,
+    };
+  }
+
+  app.get("/api/training-goal", (_req, res) => {
+    res.json(trainingGoalSummary());
+  });
+
+  app.put("/api/training-goal", (req, res) => {
+    const result = validateTrainingGoal(req.body);
+    if (!result.ok) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", result.message));
+      return;
+    }
+    saveTrainingGoal(db, demoUserId, result.value.daysPerWeek);
+    res.json(trainingGoalSummary());
+  });
+
+  // HU10 — Objetivo mínimo de horas de sueño y cumplimiento diario.
+  // ?date=YYYY-MM-DD evalúa el aviso sobre ese día (el del registro recién guardado).
+  app.get("/api/sleep-goal", (req, res) => {
+    const today = getMadridToday();
+    const date = validateSleepCheckDate(req.query.date, today);
+    if (!date.ok) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", date.message));
+      return;
+    }
+    res.json(buildSleepGoalSummary(db, demoUserId, today, date.value));
+  });
+
+  app.put("/api/sleep-goal", (req, res) => {
+    const result = validateSleepGoal(req.body);
+    if (!result.ok) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", result.message));
+      return;
+    }
+    saveSleepGoal(db, demoUserId, result.value.minHours);
+    res.json(buildSleepGoalSummary(db, demoUserId));
   });
 
   // HU9 — Configurar meta diaria de hidratación.
