@@ -100,7 +100,57 @@ export function openDatabase(path: string): DatabaseSync {
       created_at    TEXT    NOT NULL
     )
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS training_goals (
+      user_id       TEXT PRIMARY KEY,
+      days_per_week INTEGER NOT NULL CHECK (days_per_week BETWEEN 1 AND 7),
+      updated_at    TEXT NOT NULL
+    )
+  `);
   return db;
+}
+
+export interface TrainingGoalRow {
+  user_id: string;
+  days_per_week: number;
+  updated_at: string;
+}
+
+export function findTrainingGoal(db: DatabaseSync, userId: string): TrainingGoalRow | undefined {
+  return db.prepare("SELECT * FROM training_goals WHERE user_id = ?").get(userId) as
+    | TrainingGoalRow
+    | undefined;
+}
+
+export function saveTrainingGoal(
+  db: DatabaseSync,
+  userId: string,
+  daysPerWeek: number,
+): TrainingGoalRow {
+  const updatedAt = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO training_goals (user_id, days_per_week, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      days_per_week = excluded.days_per_week,
+      updated_at = excluded.updated_at
+  `).run(userId, daysPerWeek, updatedAt);
+  return findTrainingGoal(db, userId)!;
+}
+
+/** Contabiliza fechas distintas con actividad hasta el día de hoy. */
+export function countTrainingDays(
+  db: DatabaseSync,
+  userId: string,
+  weekStart: string,
+  today: string,
+): number {
+  const row = db.prepare(`
+    SELECT COUNT(DISTINCT activity_date) AS completed_days
+    FROM activities
+    WHERE user_id = ? AND activity_date >= ? AND activity_date <= ?
+  `).get(userId, weekStart, today) as { completed_days: number };
+  return row.completed_days;
 }
 
 export function findHydrationGoal(

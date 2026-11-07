@@ -6,8 +6,9 @@ import MovementIllustration from '../components/MovementIllustration'
 import SleepDashboard from '../components/SleepDashboard'
 import SleepForm from '../components/SleepForm'
 import WaterForm from '../components/WaterForm'
+import TrainingGoalForm from '../components/TrainingGoalForm'
 
-type Habit = 'activity' | 'sleep' | 'hydration-goal' | 'water'
+type Habit = 'activity' | 'sleep' | 'hydration-goal' | 'water' | 'training-goal'
 
 export default function RegisterActivityPage() {
   const [selectedHabit, setSelectedHabit] = useState<Habit>('activity')
@@ -35,9 +36,11 @@ export default function RegisterActivityPage() {
             ? '#activity-form'
             : isSleep
               ? '#sleep-form'
-              : isWater
-                ? '#water-form'
-                : '#hydration-goal'
+              : selectedHabit === 'training-goal'
+                ? '#training-goal-panel'
+                : isWater
+                  ? '#water-form'
+                  : '#hydration-goal'
         }
       >
         Ir al formulario
@@ -93,6 +96,14 @@ export default function RegisterActivityPage() {
         >
           Agua
         </button>
+        <button
+          type="button"
+          aria-pressed={selectedHabit === 'training-goal'}
+          aria-controls="training-goal-panel"
+          onClick={() => setSelectedHabit('training-goal')}
+        >
+          Objetivo de entrenamiento
+        </button>
       </nav>
 
       <main className="workspace">
@@ -106,7 +117,9 @@ export default function RegisterActivityPage() {
             <em>
               {isActivity
                 ? 'actividad física'
-                : isSleep
+                : selectedHabit === 'training-goal'
+                  ? 'objetivo de entrenamiento'
+                  : isSleep
                   ? 'horas de sueño'
                   : isWater
                     ? 'consumo de agua'
@@ -119,6 +132,11 @@ export default function RegisterActivityPage() {
                 Anota qué has hecho y cuándo.
                 <br className="desktop-break" /> Un lugar para registrar tu
                 movimiento, actividad a actividad.
+              </>
+            ) : selectedHabit === 'training-goal' ? (
+              <>
+                Elige cuántos días quieres entrenar cada semana y consulta los días
+                que te quedan para alcanzar tu meta.
               </>
             ) : isSleep ? (
               <>
@@ -146,6 +164,12 @@ export default function RegisterActivityPage() {
                   Caminar, correr, entrenar…
                   <br />
                   Elige la actividad que mejor describa la tuya.
+                </>
+              ) : selectedHabit === 'training-goal' ? (
+                <>
+                  Cuenta los días distintos con actividad.
+                  <br />
+                  El progreso se actualiza al registrar entrenamientos.
                 </>
               ) : isSleep ? (
                 <>
@@ -185,6 +209,13 @@ export default function RegisterActivityPage() {
               revision={activityRevision}
             />
           </div>
+        </div>
+        <div
+          className="habit-panel"
+          id="training-goal-panel"
+          hidden={selectedHabit !== 'training-goal'}
+        >
+          {selectedHabit === 'training-goal' && <TrainingGoalForm />}
         </div>
         <div className="habit-panel" id="sleep-panel" hidden={!isSleep}>
           <SleepForm onSaved={refreshSleep} />

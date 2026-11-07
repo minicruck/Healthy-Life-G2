@@ -32,6 +32,13 @@ import {
   validateSleepUpdate,
 } from "./validation.ts";
 import { getMadridToday } from "./sleepCalendar.ts";
+import { getTrainingWeek } from "./trainingWeek.ts";
+import {
+  countTrainingDays,
+  findTrainingGoal,
+  saveTrainingGoal,
+} from "./db.ts";
+import { validateTrainingGoal } from "./validation.ts";
 
 export interface AppConfig {
   db: DatabaseSync;
@@ -81,6 +88,37 @@ export function createApp({ db, demoUserId, corsOrigin }: AppConfig) {
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // HU8 — Objetivo de días distintos con actividad en la semana actual de Madrid.
+  function trainingGoalSummary() {
+    const today = getMadridToday();
+    const { weekStart, weekEnd } = getTrainingWeek(today);
+    const goal = findTrainingGoal(db, demoUserId);
+    const completedDays = countTrainingDays(db, demoUserId, weekStart, today);
+    return {
+      daysPerWeek: goal?.days_per_week ?? null,
+      completedDays,
+      remainingDays:
+        goal === undefined ? null : Math.max(0, goal.days_per_week - completedDays),
+      weekStart,
+      weekEnd,
+      updatedAt: goal?.updated_at ?? null,
+    };
+  }
+
+  app.get("/api/training-goal", (_req, res) => {
+    res.json(trainingGoalSummary());
+  });
+
+  app.put("/api/training-goal", (req, res) => {
+    const result = validateTrainingGoal(req.body);
+    if (!result.ok) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", result.message));
+      return;
+    }
+    saveTrainingGoal(db, demoUserId, result.value.daysPerWeek);
+    res.json(trainingGoalSummary());
   });
 
   // HU9 — Configurar meta diaria de hidratación.
