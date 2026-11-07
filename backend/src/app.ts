@@ -39,6 +39,9 @@ import {
   saveTrainingGoal,
 } from "./db.ts";
 import { validateTrainingGoal } from "./validation.ts";
+import { saveSleepGoal } from "./db.ts";
+import { validateSleepGoal } from "./validation.ts";
+import { buildSleepGoalSummary } from "./sleepGoal.ts";
 
 export interface AppConfig {
   db: DatabaseSync;
@@ -119,6 +122,21 @@ export function createApp({ db, demoUserId, corsOrigin }: AppConfig) {
     }
     saveTrainingGoal(db, demoUserId, result.value.daysPerWeek);
     res.json(trainingGoalSummary());
+  });
+
+  // HU10 — Objetivo mínimo de horas de sueño y cumplimiento diario.
+  app.get("/api/sleep-goal", (_req, res) => {
+    res.json(buildSleepGoalSummary(db, demoUserId));
+  });
+
+  app.put("/api/sleep-goal", (req, res) => {
+    const result = validateSleepGoal(req.body);
+    if (!result.ok) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", result.message));
+      return;
+    }
+    saveSleepGoal(db, demoUserId, result.value.minHours);
+    res.json(buildSleepGoalSummary(db, demoUserId));
   });
 
   // HU9 — Configurar meta diaria de hidratación.
