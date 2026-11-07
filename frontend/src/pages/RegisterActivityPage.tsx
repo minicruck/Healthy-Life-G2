@@ -65,9 +65,7 @@ export default function RegisterActivityPage() {
         </div>
         <div className="header-context">
           <span>SCRUM &amp; RUN</span>
-          <span>
-            {isWater ? 'E1 · Hidratación' : 'E2 · Hábitos saludables'}
-          </span>
+          <span>E2 · Hábitos saludables</span>
         </div>
       </header>
 
@@ -117,7 +115,7 @@ export default function RegisterActivityPage() {
       <main className="workspace">
         <section className="introduction" aria-labelledby="page-title">
           <p className="eyebrow">
-            <span className="section-marker">{isWater ? 'E1' : 'E2'}</span>{' '}
+            <span className="section-marker">E2</span>{' '}
             {isWater ? 'HIDRATACIÓN' : 'SEGUIMIENTO DE HÁBITOS'}
           </p>
           <h1 id="page-title">
@@ -255,7 +253,7 @@ export default function RegisterActivityPage() {
       <footer className="site-footer">
         <span>
           HEALTHY LIFE <span className="footer-separator">/</span> Módulo{' '}
-          {isWater ? 'E1' : 'E2'}
+          E2
         </span>
         <span>
           Proyecto académico · Universidad Rey Juan Carlos{' '}

@@ -62,11 +62,11 @@ describe('HU3 en la aplicación de Healthy Life', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       'Registrar consumo de agua',
     )
-    expect(screen.getByText('E1 · Hidratación')).toBeVisible()
+    expect(screen.getByText('E2 · Hábitos saludables')).toBeVisible()
     expect(
-      screen.getByText('E1', { selector: '.section-marker' }),
+      screen.getByText('E2', { selector: '.section-marker' }),
     ).toBeVisible()
-    expect(screen.getByText(/Módulo E1/)).toBeVisible()
+    expect(screen.getByText(/Módulo E2/)).toBeVisible()
     expect(await screen.findByText('0 ml')).toBeVisible()
     expect(
       await screen.findByText('Aún no hay consumos registrados.'),
