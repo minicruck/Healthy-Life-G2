@@ -1,6 +1,7 @@
 // HU10 en la pantalla de sueño:
 // - CA3: si no hay objetivo, lo indica y sugiere configurarlo.
-// - CA4: al guardar un registro que deja el día por debajo del objetivo, muestra una notificación.
+// - CA4: al guardar un registro que deja SU día por debajo del objetivo, muestra una notificación
+//   (se evalúa la fecha del registro guardado, no la más reciente del historial).
 import { useEffect, useState } from 'react'
 import { getSleepGoal, sleepAlertMessage } from '../services/sleepGoal'
 import type { SleepGoalSummary } from '../types/sleepGoal'
@@ -10,16 +11,18 @@ type Props = {
   active: boolean
   /** Cambia cada vez que se guarda un registro de sueño. */
   revision: number
+  /** Fecha del último registro guardado: el aviso se evalúa sobre ese día. */
+  checkDate?: string
   onConfigure: () => void
 }
 
-export default function SleepGoalNotice({ active, revision, onConfigure }: Props) {
+export default function SleepGoalNotice({ active, revision, checkDate, onConfigure }: Props) {
   const [summary, setSummary] = useState<SleepGoalSummary | null>(null)
 
   useEffect(() => {
     if (!active) return
     let cancelled = false
-    getSleepGoal()
+    getSleepGoal(checkDate)
       .then((next) => {
         if (!cancelled) setSummary(next)
       })
@@ -30,7 +33,7 @@ export default function SleepGoalNotice({ active, revision, onConfigure }: Props
     return () => {
       cancelled = true
     }
-  }, [active, revision])
+  }, [active, revision, checkDate])
 
   if (!active || summary === null) return null
 

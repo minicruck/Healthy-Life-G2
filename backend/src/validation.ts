@@ -185,6 +185,21 @@ export function validateSleepGoal(body: unknown): SleepGoalValidationResult {
   return { ok: true, value: { minHours } };
 }
 
+/** HU10 — ?date= opcional: una fecha real YYYY-MM-DD que no sea posterior a hoy. */
+export function validateSleepCheckDate(
+  value: unknown,
+  today: string,
+): { ok: true; value: string | undefined } | { ok: false; message: string } {
+  if (value === undefined) return { ok: true, value: undefined };
+  if (typeof value !== "string" || !isRealSleepDate(value)) {
+    return { ok: false, message: "La fecha que se quiere comprobar no es válida." };
+  }
+  if (value > today) {
+    return { ok: false, message: "No se puede comprobar el objetivo de una fecha futura." };
+  }
+  return { ok: true, value };
+}
+
 export type WaterValidationResult =
   | { ok: true; value: { amountMl: number } }
   | { ok: false; message: string };

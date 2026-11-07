@@ -40,7 +40,7 @@ import {
 } from "./db.ts";
 import { validateTrainingGoal } from "./validation.ts";
 import { saveSleepGoal } from "./db.ts";
-import { validateSleepGoal } from "./validation.ts";
+import { validateSleepCheckDate, validateSleepGoal } from "./validation.ts";
 import { buildSleepGoalSummary } from "./sleepGoal.ts";
 
 export interface AppConfig {
@@ -125,8 +125,15 @@ export function createApp({ db, demoUserId, corsOrigin }: AppConfig) {
   });
 
   // HU10 — Objetivo mínimo de horas de sueño y cumplimiento diario.
-  app.get("/api/sleep-goal", (_req, res) => {
-    res.json(buildSleepGoalSummary(db, demoUserId));
+  // ?date=YYYY-MM-DD evalúa el aviso sobre ese día (el del registro recién guardado).
+  app.get("/api/sleep-goal", (req, res) => {
+    const today = getMadridToday();
+    const date = validateSleepCheckDate(req.query.date, today);
+    if (!date.ok) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", date.message));
+      return;
+    }
+    res.json(buildSleepGoalSummary(db, demoUserId, today, date.value));
   });
 
   app.put("/api/sleep-goal", (req, res) => {

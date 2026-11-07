@@ -12,6 +12,7 @@ const empty = {
   toDate: '2026-11-07',
   days: [],
   latest: null,
+  checked: null,
   alert: false,
 }
 const withGoal = {
@@ -23,6 +24,7 @@ const withGoal = {
     { date: '2026-11-06', totalHours: 9, met: true },
   ],
   latest: { date: '2026-11-07', totalHours: 6.5, met: false },
+  checked: { date: '2026-11-07', totalHours: 6.5, met: false },
   alert: true,
 }
 const json = (body: unknown, status = 200) =>

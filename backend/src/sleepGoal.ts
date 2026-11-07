@@ -28,7 +28,12 @@ export interface SleepGoalSummary {
   days: SleepDayCompliance[];
   /** Día más reciente con registros, o null si no hay ninguno en la ventana. */
   latest: SleepDayCompliance | null;
-  /** true si hay objetivo y el día más reciente con registros no lo alcanza. */
+  /**
+   * Día sobre el que se evalúa el aviso: el pedido con ?date= (por ejemplo, el del
+   * registro recién guardado) o, si no se pide ninguno, el más reciente con registros.
+   */
+  checked: SleepDayCompliance | null;
+  /** true si hay objetivo y el día evaluado (`checked`) no lo alcanza. */
   alert: boolean;
 }
 
@@ -36,6 +41,7 @@ export function buildSleepGoalSummary(
   db: DatabaseSync,
   userId: string,
   today = getMadridToday(),
+  checkDate?: string,
 ): SleepGoalSummary {
   const goal = findSleepGoal(db, userId);
   const minHours = goal?.min_hours ?? null;
@@ -47,6 +53,17 @@ export function buildSleepGoalSummary(
     met: minHours === null ? null : day.totalHours >= minHours,
   }));
   const latest = days[0] ?? null;
+  let checked = latest;
+  if (checkDate !== undefined) {
+    // El día pedido puede quedar fuera de la ventana de 7 días: se calcula aparte.
+    const [day] = sumSleepByDay(db, userId, checkDate, checkDate);
+    const totalHours = day === undefined ? 0 : Math.round(day.totalHours * 100) / 100;
+    checked = {
+      date: checkDate,
+      totalHours,
+      met: minHours === null ? null : (day?.totalHours ?? 0) >= minHours,
+    };
+  }
   return {
     minHours,
     updatedAt: goal?.updated_at ?? null,
@@ -54,6 +71,7 @@ export function buildSleepGoalSummary(
     toDate: today,
     days,
     latest,
-    alert: latest !== null && latest.met === false,
+    checked,
+    alert: checked !== null && checked.met === false,
   };
 }

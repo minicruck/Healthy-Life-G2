@@ -53,6 +53,7 @@ function isSummary(value: unknown): value is SleepGoalSummary {
     Array.isArray(data.days) &&
     data.days.every(isDay) &&
     (data.latest === null || isDay(data.latest)) &&
+    (data.checked === null || isDay(data.checked)) &&
     typeof data.alert === 'boolean'
   )
 }
@@ -83,8 +84,13 @@ async function readSummary(response: Response): Promise<SleepGoalSummary> {
   return data
 }
 
-export async function getSleepGoal(): Promise<SleepGoalSummary> {
-  const response = await fetch(`${getBaseUrl()}/api/sleep-goal`)
+/**
+ * Consulta el objetivo. Con `checkDate` (YYYY-MM-DD) el aviso se evalúa sobre ese día,
+ * por ejemplo el del registro de sueño recién guardado.
+ */
+export async function getSleepGoal(checkDate?: string): Promise<SleepGoalSummary> {
+  const query = checkDate ? `?date=${encodeURIComponent(checkDate)}` : ''
+  const response = await fetch(`${getBaseUrl()}/api/sleep-goal${query}`)
   return readSummary(response)
 }
 
@@ -110,11 +116,12 @@ export function formatDay(isoDate: string): string {
   return `${day}/${month}/${year}`
 }
 
-/** Texto del aviso cuando el último día registrado no alcanza el objetivo. */
+/** Texto del aviso cuando el día evaluado (`checked`) no alcanza el objetivo. */
 export function sleepAlertMessage(summary: SleepGoalSummary): string | null {
-  if (!summary.alert || summary.latest === null || summary.minHours === null) return null
-  const missing = summary.minHours - summary.latest.totalHours
-  return `El ${formatDay(summary.latest.date)} dormiste ${formatHours(
-    summary.latest.totalHours,
+  const day = summary.checked
+  if (!summary.alert || day === null || summary.minHours === null) return null
+  const missing = summary.minHours - day.totalHours
+  return `El ${formatDay(day.date)} dormiste ${formatHours(
+    day.totalHours,
   )}, ${formatHours(missing)} menos que tu objetivo de ${formatHours(summary.minHours)}.`
 }

@@ -10,12 +10,14 @@ Referencia Jira: **SCRUM-33** (subtareas SCRUM-55 a SCRUM-58).
 - Hay **un único objetivo por usuario**; guardarlo de nuevo lo sustituye.
 - El cumplimiento se calcula **por día**: se suman todos los descansos de esa fecha (noche, siesta y otros) registrados en HU2 y se comparan con el objetivo.
 - Se revisan los **últimos 7 días** (hoy incluido, calendario `Europe/Madrid`). No se inventan días sin registros.
-- **Aviso:** si hay objetivo y el día más reciente con registros no lo alcanza, `alert` es `true` y la pantalla muestra una notificación.
+- **Aviso:** si hay objetivo y el día evaluado no lo alcanza, `alert` es `true` y la pantalla muestra una notificación. El día evaluado es el que se pide con `?date=` (la pantalla de sueño envía la fecha del registro recién guardado) o, si no se pide ninguno, el más reciente con registros.
 - Se usa el usuario de prueba del backend (`DEMO_USER_ID`), como en las demás historias.
 
 ## `GET /api/sleep-goal`
 
 Devuelve el objetivo y el cumplimiento calculado en ese momento.
+
+Parámetro opcional `?date=YYYY-MM-DD`: evalúa el aviso sobre ese día, aunque haya días más recientes o quede fuera de la ventana de 7 días. Una fecha inexistente o futura devuelve `400 VALIDATION_ERROR`.
 
 Sin objetivo ni registros:
 
@@ -27,6 +29,7 @@ Sin objetivo ni registros:
   "toDate": "2026-11-07",
   "days": [],
   "latest": null,
+  "checked": null,
   "alert": false
 }
 ```
@@ -44,6 +47,7 @@ Con objetivo y registros:
     { "date": "2026-11-06", "totalHours": 9, "met": true }
   ],
   "latest": { "date": "2026-11-07", "totalHours": 6.5, "met": false },
+  "checked": { "date": "2026-11-07", "totalHours": 6.5, "met": false },
   "alert": true
 }
 ```
@@ -54,7 +58,8 @@ Con objetivo y registros:
 | `fromDate` / `toDate` | Ventana revisada: últimos 7 días hasta hoy |
 | `days` | Días con registros, del más reciente al más antiguo; `met` es `null` si no hay objetivo |
 | `latest` | Día más reciente con registros, o `null` |
-| `alert` | `true` si hay objetivo y `latest` no lo alcanza |
+| `checked` | Día sobre el que se evalúa el aviso: el de `?date=` o, si no se indica, `latest` |
+| `alert` | `true` si hay objetivo y `checked` no lo alcanza |
 
 ## `PUT /api/sleep-goal`
 
@@ -84,7 +89,7 @@ La tabla se crea de forma aditiva: no modifica `sleep_records` ni ninguna otra.
 | CA1 · Configurar 9 h, se guarda y se ve | Pestaña **«Objetivo de sueño»** (al final de la barra, para no alterar el orden de HU1 y HU2): formulario y resumen «9 h como mínimo» con el cumplimiento de los últimos 7 días |
 | CA2 · Valores fuera de rango, vacíos o no numéricos | Error en el formulario sin llamar a la API; la API también responde 400 y conserva el objetivo anterior |
 | CA3 · Sin objetivo, se indica y se sugiere configurarlo | Pantalla **«Horas de sueño»**: «Aún no has establecido un objetivo mínimo de sueño» con el botón «Configurar objetivo» (y lo mismo en la pestaña del objetivo) |
-| CA4 · Al guardar un registro por debajo del objetivo, notificación | Pantalla **«Horas de sueño»**: tras guardar, aparece bajo el formulario «No has alcanzado tu objetivo de sueño» con las horas que faltan |
+| CA4 · Al guardar un registro por debajo del objetivo, notificación | Pantalla **«Horas de sueño»**: tras guardar, aparece bajo el formulario «No has alcanzado tu objetivo de sueño» con las horas que faltan. Se evalúa el día del registro guardado, no el más reciente del historial |
 
 El aviso consulta `GET /api/sleep-goal` al entrar en la pantalla de sueño y después de cada registro. Si esa consulta falla, no se muestra nada y el registro de sueño sigue funcionando.
 

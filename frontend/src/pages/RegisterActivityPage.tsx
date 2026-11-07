@@ -28,7 +28,10 @@ export default function RegisterActivityPage() {
   const [sleepRevision, setSleepRevision] = useState(0)
   const [activityRevision, setActivityRevision] = useState(0)
   const [showActivityHistory, setShowActivityHistory] = useState(false)
-  const refreshSleep = useCallback(() => {
+  // HU10: fecha del último registro de sueño guardado, para avisar sobre ese día.
+  const [lastSleepDate, setLastSleepDate] = useState<string | undefined>(undefined)
+  const refreshSleep = useCallback((record?: { sleepDate: string }) => {
+    if (record) setLastSleepDate(record.sleepDate)
     setSleepRevision((revision) => revision + 1)
   }, [])
   const refreshActivities = useCallback(() => {
@@ -260,6 +263,7 @@ export default function RegisterActivityPage() {
           <SleepGoalNotice
             active={isSleep}
             revision={sleepRevision}
+            checkDate={lastSleepDate}
             onConfigure={() => setSelectedHabit('sleep-goal')}
           />
         </div>

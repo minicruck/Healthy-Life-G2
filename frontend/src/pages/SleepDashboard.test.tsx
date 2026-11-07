@@ -43,6 +43,7 @@ const noSleepGoal = {
   toDate: '2026-10-11',
   days: [],
   latest: null,
+  checked: null,
   alert: false,
 }
 const isSleepGoalRequest = (input: RequestInfo | URL) =>

@@ -12,5 +12,7 @@ export type SleepGoalSummary = {
   toDate: string
   days: SleepDayCompliance[]
   latest: SleepDayCompliance | null
+  /** Día sobre el que se evalúa el aviso (el pedido con ?date= o, si no, `latest`). */
+  checked: SleepDayCompliance | null
   alert: boolean
 }

@@ -11,6 +11,7 @@ const base = {
   toDate: '2026-11-07',
   days: [],
   latest: null,
+  checked: null,
   alert: false,
 }
 const json = (body: unknown) =>
@@ -40,7 +41,7 @@ describe('HU10 · avisos en la pantalla de sueño', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
     const latest = { date: '2026-11-07', totalHours: 5, met: false }
-    fetchMock.mockResolvedValueOnce(json({ ...base, days: [latest], latest, alert: true }))
+    fetchMock.mockResolvedValueOnce(json({ ...base, days: [latest], latest, checked: latest, alert: true }))
     rerender(<SleepGoalNotice active revision={1} onConfigure={() => {}} />)
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'El 7/11/2026 dormiste 5 h, 3 h menos que tu objetivo de 8 h.',
@@ -49,7 +50,7 @@ describe('HU10 · avisos en la pantalla de sueño', () => {
 
   it('no muestra nada si se cumple el objetivo, si la API falla o si la pestaña no está activa', async () => {
     const latest = { date: '2026-11-07', totalHours: 9, met: true }
-    fetchMock.mockResolvedValueOnce(json({ ...base, days: [latest], latest }))
+    fetchMock.mockResolvedValueOnce(json({ ...base, days: [latest], latest, checked: latest }))
     const { container, rerender } = render(
       <SleepGoalNotice active revision={0} onConfigure={() => {}} />,
     )
@@ -63,5 +64,19 @@ describe('HU10 · avisos en la pantalla de sueño', () => {
 
     rerender(<SleepGoalNotice active={false} revision={2} onConfigure={() => {}} />)
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('evalúa el día del registro guardado aunque haya un día más reciente que cumple', async () => {
+    // Caso de la revisión: 9 h hoy, se guardan 5 h de ayer con objetivo de 8 h.
+    const today = { date: '2026-11-07', totalHours: 9, met: true }
+    const yesterday = { date: '2026-11-06', totalHours: 5, met: false }
+    fetchMock.mockResolvedValueOnce(
+      json({ ...base, days: [today, yesterday], latest: today, checked: yesterday, alert: true }),
+    )
+    render(<SleepGoalNotice active revision={1} checkDate="2026-11-06" onConfigure={() => {}} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'El 6/11/2026 dormiste 5 h, 3 h menos que tu objetivo de 8 h.',
+    )
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:3001/api/sleep-goal?date=2026-11-06')
   })
 })

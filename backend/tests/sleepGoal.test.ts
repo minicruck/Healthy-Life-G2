@@ -131,3 +131,40 @@ test("el cálculo usa el día que se le indica como hoy", () => {
   assert.equal(summary.fromDate, "2026-10-28");
   assert.deepEqual(summary.latest, { date: "2026-11-01", totalHours: 6.3, met: false });
 });
+
+// Caso detectado en la revisión de la PR: el aviso debe evaluar el día del registro
+// recién guardado, no el día más reciente del historial.
+test("con ?date= avisa por el día guardado aunque haya un día más reciente que cumple", async () => {
+  const yesterday = shiftDate(today(), -1);
+  await request(app).put("/api/sleep-goal").send({ minHours: 8 });
+  await sleep(today(), 9);
+  await sleep(yesterday, 5);
+
+  const sinFecha = await request(app).get("/api/sleep-goal");
+  assert.equal(sinFecha.body.alert, false);
+  assert.equal(sinFecha.body.checked.date, today());
+
+  const conFecha = await request(app).get(`/api/sleep-goal?date=${yesterday}`);
+  assert.equal(conFecha.status, 200);
+  assert.equal(conFecha.body.alert, true);
+  assert.deepEqual(conFecha.body.checked, { date: yesterday, totalHours: 5, met: false });
+  assert.equal(conFecha.body.latest.date, today());
+});
+
+test("con ?date= evalúa también días fuera de la ventana de 7 días", async () => {
+  const old = shiftDate(today(), -20);
+  await request(app).put("/api/sleep-goal").send({ minHours: 8 });
+  await sleep(old, 6);
+  const response = await request(app).get(`/api/sleep-goal?date=${old}`);
+  assert.equal(response.body.alert, true);
+  assert.deepEqual(response.body.checked, { date: old, totalHours: 6, met: false });
+  assert.deepEqual(response.body.days, []);
+});
+
+test("rechaza ?date= inválidas o futuras", async () => {
+  for (const date of ["2026-02-30", "ayer", "07/11/2026", shiftDate(today(), 1)]) {
+    const response = await request(app).get(`/api/sleep-goal?date=${encodeURIComponent(date)}`);
+    assert.equal(response.status, 400, date);
+    assert.equal(response.body.error.code, "VALIDATION_ERROR");
+  }
+});
