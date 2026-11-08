@@ -9,17 +9,21 @@ import cors from "cors";
 import type { DatabaseSync } from "node:sqlite";
 import {
   findHydrationGoal,
+  findSleepQualityByDate,
   insertActivity,
   insertSleep,
   insertWater,
   listActivities,
   listSleep,
+  listSleepQuality,
   listWater,
   findSleep,
   updateSleep,
   getWaterTotal,
   saveHydrationGoal,
+  saveSleepQuality,
   type ActivityRow,
+  type SleepQualityRow,
   type SleepRow,
   type WaterRow,
 } from "./db.ts";
@@ -28,6 +32,7 @@ import {
   validateHydrationGoal,
   validateNewActivity,
   validateNewSleep,
+  validateNewSleepQuality,
   validateNewWater,
   validateSleepUpdate,
 } from "./validation.ts";
@@ -81,6 +86,17 @@ function waterToApi(row: WaterRow) {
     amountMl: row.amount_ml,
     consumedDate: row.consumed_date,
     createdAt: row.created_at,
+  };
+}
+
+function sleepQualityToApi(row: SleepQualityRow) {
+  return {
+    id: row.id,
+    sleepDate: row.sleep_date,
+    rating: row.rating,
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -233,6 +249,57 @@ export function createApp({ db, demoUserId, corsOrigin }: AppConfig) {
       return;
     }
     res.json(sleepToApi(row));
+  });
+
+  // Calidad del sueño — registrar sensación de calidad (1 a 5) y comentario por noche.
+  app.get("/api/sleep-quality", (req, res) => {
+    const date = req.query.date;
+    if (typeof date === "string") {
+      const record = findSleepQualityByDate(db, demoUserId, date);
+      res.json({
+        exists: record !== undefined,
+        record: record ? sleepQualityToApi(record) : null,
+      });
+      return;
+    }
+    res.json(listSleepQuality(db, demoUserId).map(sleepQualityToApi));
+  });
+
+  app.post("/api/sleep-quality", (req, res) => {
+    const result = validateNewSleepQuality(req.body);
+    if (!result.ok) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", result.message));
+      return;
+    }
+
+    const existing = findSleepQualityByDate(
+      db,
+      demoUserId,
+      result.value.sleepDate,
+    );
+    if (existing && !result.value.overwrite) {
+      res.status(409).json({
+        error: {
+          code: "ALREADY_EXISTS",
+          message:
+            "Ya existe una valoración para esta noche. ¿Deseas sustituirla?",
+        },
+        existing: sleepQualityToApi(existing),
+      });
+      return;
+    }
+
+    const saved = saveSleepQuality(db, {
+      userId: demoUserId,
+      sleepDate: result.value.sleepDate,
+      rating: result.value.rating,
+      notes: result.value.notes,
+    });
+
+    res.status(saved.replaced ? 200 : 201).json({
+      ...sleepQualityToApi(saved.row),
+      replaced: saved.replaced,
+    });
   });
 
   // HU3 — Registrar consumo diario de agua.

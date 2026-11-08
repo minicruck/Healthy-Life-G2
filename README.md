@@ -33,6 +33,8 @@ Healthy-Life-G2/
 - [Contrato de API de HU2 — Registrar horas de sueño (SCRUM-2)](docs/hu2-api.md)
 - [Contrato de API de HU9 — Configurar meta diaria de hidratación](docs/hu9-api.md)
 - [Contrato de API de HU3 — Registrar consumo diario de agua (SCRUM-3)](docs/hu3-api.md)
+- [Contrato de API de HU10 — Objetivo mínimo de sueño](docs/hu10-api.md)
+- [Contrato de API — Calidad del sueño (sensación y notas)](docs/sleep-quality-api.md)
 - [Cómo arrancar el backend](backend/README.md)
 
 La aplicación permite elegir entre registrar actividad física (HU1), horas de sueño (HU2) y consumo diario de agua (HU3), sin cambiar de aplicación.

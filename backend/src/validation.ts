@@ -221,3 +221,70 @@ export function validateNewWater(body: unknown): WaterValidationResult {
   }
   return { ok: true, value: { amountMl } };
 }
+
+export interface SleepQualityInput {
+  sleepDate: string;
+  rating: number;
+  notes: string | null;
+  overwrite: boolean;
+}
+
+export type SleepQualityValidationResult =
+  | { ok: true; value: SleepQualityInput }
+  | { ok: false; message: string };
+
+export function validateNewSleepQuality(
+  body: unknown,
+  now = new Date(),
+): SleepQualityValidationResult {
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return { ok: false, message: "El cuerpo de la petición debe ser un objeto JSON." };
+  }
+  const { sleepDate, rating, notes, overwrite } = body as Record<string, unknown>;
+
+  if (typeof sleepDate !== "string" || !isRealSleepDate(sleepDate)) {
+    return { ok: false, message: "La fecha de la noche de descanso no es válida." };
+  }
+
+  if (sleepDate > getMadridToday(now)) {
+    return { ok: false, message: "No puedes registrar la calidad del sueño para una fecha futura." };
+  }
+
+  if (
+    typeof rating !== "number" ||
+    !Number.isInteger(rating) ||
+    rating < 1 ||
+    rating > 5
+  ) {
+    return {
+      ok: false,
+      message: "La valoración es obligatoria y debe ser un número entero entre 1 y 5.",
+    };
+  }
+
+  let cleanNotes: string | null = null;
+  if (notes !== undefined && notes !== null) {
+    if (typeof notes !== "string") {
+      return { ok: false, message: "El comentario debe ser texto." };
+    }
+    const trimmed = notes.trim();
+    if (trimmed.length > 200) {
+      return {
+        ok: false,
+        message: "El comentario no puede superar los 200 caracteres.",
+      };
+    }
+    cleanNotes = trimmed === "" ? null : trimmed;
+  }
+
+  return {
+    ok: true,
+    value: {
+      sleepDate,
+      rating,
+      notes: cleanNotes,
+      overwrite: overwrite === true,
+    },
+  };
+}
+

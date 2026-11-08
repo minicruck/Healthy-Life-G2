@@ -413,4 +413,26 @@ describe('Registrar actividad física', () => {
       expect(screen.queryByText(successMessage)).not.toBeInTheDocument(),
     )
   })
+
+  it('permite cambiar a la pestaña de calidad del sueño situada junto a objetivo de sueño', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockResolvedValue(jsonResponse([], 200))
+    render(<RegisterActivityPage />)
+
+    const qualityBtn = screen.getByRole('button', {
+      name: 'Calidad del sueño',
+    })
+    expect(qualityBtn).toBeInTheDocument()
+    expect(qualityBtn).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(qualityBtn)
+
+    expect(qualityBtn).toHaveAttribute('aria-pressed', 'true')
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: 'Registrar calidad del sueño',
+      }),
+    ).toBeInTheDocument()
+  })
 })
