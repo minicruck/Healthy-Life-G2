@@ -8,6 +8,7 @@ import SleepForm from '../components/SleepForm'
 import WaterForm from '../components/WaterForm'
 import TrainingGoalForm from '../components/TrainingGoalForm'
 import SleepGoalForm from '../components/SleepGoalForm'
+import SleepQualityForm from '../components/SleepQualityForm'
 import SleepGoalNotice from '../components/SleepGoalNotice'
 
 type Habit =
@@ -17,6 +18,7 @@ type Habit =
   | 'water'
   | 'training-goal'
   | 'sleep-goal'
+  | 'sleep-quality'
 
 export default function RegisterActivityPage() {
   const [selectedHabit, setSelectedHabit] = useState<Habit>('activity')
@@ -51,9 +53,11 @@ export default function RegisterActivityPage() {
                 ? '#training-goal-panel'
                 : selectedHabit === 'sleep-goal'
                   ? '#sleep-goal-panel'
-                  : isWater
-                  ? '#water-form'
-                  : '#hydration-goal'
+                  : selectedHabit === 'sleep-quality'
+                    ? '#sleep-quality-panel'
+                    : isWater
+                    ? '#water-form'
+                    : '#hydration-goal'
         }
       >
         Ir al formulario
@@ -125,6 +129,14 @@ export default function RegisterActivityPage() {
         >
           Objetivo de sueño
         </button>
+        <button
+          type="button"
+          aria-pressed={selectedHabit === 'sleep-quality'}
+          aria-controls="sleep-quality-panel"
+          onClick={() => setSelectedHabit('sleep-quality')}
+        >
+          Calidad del sueño
+        </button>
       </nav>
 
       <main className="workspace">
@@ -142,11 +154,13 @@ export default function RegisterActivityPage() {
                   ? 'objetivo de entrenamiento'
                   : selectedHabit === 'sleep-goal'
                     ? 'objetivo de sueño'
-                    : isSleep
-                  ? 'horas de sueño'
-                  : isWater
-                    ? 'consumo de agua'
-                    : 'meta diaria de agua'}
+                    : selectedHabit === 'sleep-quality'
+                      ? 'calidad del sueño'
+                      : isSleep
+                    ? 'horas de sueño'
+                    : isWater
+                      ? 'consumo de agua'
+                      : 'meta diaria de agua'}
             </em>
           </h1>
           <p className="intro-copy">
@@ -160,6 +174,11 @@ export default function RegisterActivityPage() {
               <>
                 Fija cuántas horas quieres dormir como mínimo cada día y te
                 avisaremos cuando no lo cumplas.
+              </>
+            ) : selectedHabit === 'sleep-quality' ? (
+              <>
+                Registra cómo has descansado cada noche valorando tu calidad de
+                sueño del 1 al 5 y anotando tus sensaciones.
               </>
             ) : selectedHabit === 'training-goal' ? (
               <>
@@ -198,6 +217,12 @@ export default function RegisterActivityPage() {
                   Se suman noches y siestas de cada día.
                   <br />
                   Revisamos los últimos 7 días.
+                </>
+              ) : selectedHabit === 'sleep-quality' ? (
+                <>
+                  Una valoración por noche.
+                  <br />
+                  Puntúa tu descanso del 1 al 5.
                 </>
               ) : selectedHabit === 'training-goal' ? (
                 <>
@@ -257,6 +282,13 @@ export default function RegisterActivityPage() {
           hidden={selectedHabit !== 'sleep-goal'}
         >
           {selectedHabit === 'sleep-goal' && <SleepGoalForm />}
+        </div>
+        <div
+          className="habit-panel"
+          id="sleep-quality-panel"
+          hidden={selectedHabit !== 'sleep-quality'}
+        >
+          {selectedHabit === 'sleep-quality' && <SleepQualityForm />}
         </div>
         <div className="habit-panel" id="sleep-panel" hidden={!isSleep}>
           <SleepForm onSaved={refreshSleep} />

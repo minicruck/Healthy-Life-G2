@@ -115,6 +115,19 @@ export function openDatabase(path: string): DatabaseSync {
       updated_at TEXT NOT NULL
     )
   `);
+  // Calidad del sueño — una valoración (1 a 5) y comentario opcional por noche y usuario.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sleep_quality (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     TEXT    NOT NULL,
+      sleep_date  TEXT    NOT NULL,
+      rating      INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+      notes       TEXT,
+      created_at  TEXT    NOT NULL,
+      updated_at  TEXT    NOT NULL,
+      UNIQUE(user_id, sleep_date)
+    )
+  `);
   return db;
 }
 
@@ -334,3 +347,74 @@ export function getWaterTotal(
     .get(userId, consumedDate) as { total_ml: number };
   return row.total_ml;
 }
+
+export interface SleepQualityRow {
+  id: number;
+  user_id: string;
+  sleep_date: string;
+  rating: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NewSleepQuality {
+  userId: string;
+  sleepDate: string;
+  rating: number;
+  notes: string | null;
+}
+
+export function findSleepQualityByDate(
+  db: DatabaseSync,
+  userId: string,
+  sleepDate: string,
+): SleepQualityRow | undefined {
+  return db
+    .prepare("SELECT * FROM sleep_quality WHERE user_id = ? AND sleep_date = ?")
+    .get(userId, sleepDate) as unknown as SleepQualityRow | undefined;
+}
+
+export function listSleepQuality(
+  db: DatabaseSync,
+  userId: string,
+): SleepQualityRow[] {
+  return db
+    .prepare(
+      `SELECT * FROM sleep_quality WHERE user_id = ?
+       ORDER BY sleep_date DESC, id DESC`,
+    )
+    .all(userId) as unknown as SleepQualityRow[];
+}
+
+export function saveSleepQuality(
+  db: DatabaseSync,
+  data: NewSleepQuality,
+): { row: SleepQualityRow; replaced: boolean } {
+  const existing = findSleepQualityByDate(db, data.userId, data.sleepDate);
+  const now = new Date().toISOString();
+
+  if (existing) {
+    db.prepare(
+      `UPDATE sleep_quality
+       SET rating = ?, notes = ?, updated_at = ?
+       WHERE user_id = ? AND sleep_date = ?`,
+    ).run(data.rating, data.notes, now, data.userId, data.sleepDate);
+    const updated = findSleepQualityByDate(db, data.userId, data.sleepDate)!;
+    return { row: updated, replaced: true };
+  }
+
+  const result = db
+    .prepare(
+      `INSERT INTO sleep_quality (user_id, sleep_date, rating, notes, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(data.userId, data.sleepDate, data.rating, data.notes, now, now);
+
+  const row = db
+    .prepare("SELECT * FROM sleep_quality WHERE id = ?")
+    .get(Number(result.lastInsertRowid)) as unknown as SleepQualityRow;
+
+  return { row, replaced: false };
+}
+

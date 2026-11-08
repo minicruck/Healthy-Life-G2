@@ -122,6 +122,15 @@ Invoke-RestMethod -Uri $sleepApi
 
 El identificador y `createdAt` deben conservarse, y la lista debe contener una sola fila para el registro creado por el ejemplo, ahora con `1.5` horas. Estos comandos escriben datos reales del usuario de prueba.
 
+## Calidad del sueño
+
+El contrato está documentado en [`docs/sleep-quality-api.md`](../docs/sleep-quality-api.md).
+
+| Endpoint | Comportamiento |
+| --- | --- |
+| `GET /api/sleep-quality` | Devuelve la lista de valoraciones registradas por el usuario configurado, de más reciente a más antigua. Permite `?date=YYYY-MM-DD`. |
+| `POST /api/sleep-quality` | Registra o actualiza la sensación de descanso (valoración obligatoria 1 a 5, fecha no futura, comentario opcional hasta 200 caracteres). Si ya existe para esa fecha y no se envía `overwrite: true`, devuelve `409 ALREADY_EXISTS`. Con `overwrite: true` actualiza sin duplicar. |
+
 ### Comprobaciones
 
 ```bash
