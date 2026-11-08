@@ -904,6 +904,11 @@ textarea:disabled {
 .water-panel-stack {
   min-width: 0;
 }
+.water-hydration-stack {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
 .water-summary {
   margin-bottom: 24px;
   padding: 14px 16px;
