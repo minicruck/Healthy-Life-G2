@@ -65,16 +65,47 @@ describe('WeeklyCongratulations', () => {
   })
 
   it('reloads sleep and water goals before showing manual achievements', async () => {
+    vi.mocked(getSleepRecords).mockResolvedValue([
+      ...['2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27', '2026-11-28', '2026-11-29'].map((sleepDate, index) => ({
+        id: index + 1,
+        sleepDate,
+        hoursSlept: 8,
+        sleepType: 'night' as const,
+        createdAt: '2026-11-24T10:00:00Z',
+      })),
+    ])
+    vi.mocked(listWaterEntries).mockResolvedValue([
+      ...['2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27', '2026-11-28', '2026-11-29'].map((consumedDate, index) => ({
+        id: index + 1,
+        amountMl: 2000,
+        consumedDate,
+        createdAt: '2026-11-24T10:00:00Z',
+      })),
+    ])
+
     const user = userEvent.setup()
     render(<WeeklyCongratulations />)
 
     await user.click(screen.getByRole('button', { name: 'Abrir felicitación semanal' }))
 
-    expect(await screen.findByText(/Sueño: 1 día cumplido/i)).toBeInTheDocument()
-    expect(screen.getByText(/Hidratación diaria: 2 litros cumplidos hoy/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Sueño: objetivo diario de 8 h alcanzado durante toda la semana/i)).toBeInTheDocument()
+    expect(screen.getByText(/Hidratación: objetivo diario de 2 litros alcanzado durante toda la semana/i)).toBeInTheDocument()
     expect(getSleepGoal).toHaveBeenCalledTimes(1)
     expect(getSleepRecords).toHaveBeenCalledTimes(1)
     expect(getHydrationGoal).toHaveBeenCalledTimes(1)
-    expect(getWaterToday).toHaveBeenCalledTimes(1)
+    expect(listWaterEntries).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows no achievement when the full week has not been completed', async () => {
+    vi.mocked(getSleepRecords).mockResolvedValue([
+      { id: 1, sleepDate: '2026-11-24', hoursSlept: 8, sleepType: 'night', createdAt: '2026-11-24T10:00:00Z' },
+    ])
+
+    const user = userEvent.setup()
+    render(<WeeklyCongratulations />)
+
+    await user.click(screen.getByRole('button', { name: 'Abrir felicitación semanal' }))
+
+    expect(await screen.findByText('Tu siguiente logro te espera')).toBeInTheDocument()
   })
 })

@@ -15,6 +15,8 @@ export const WEEKLY_CONGRATULATION_SCHEDULE = {
 
 const USER_ID = 'demo-user'
 const STORAGE_KEY = 'healthy-life-weekly-congratulations'
+const ACKNOWLEDGED_KEY = 'healthy-life-weekly-congratulations-acknowledged'
+const PENDING_KEY = 'healthy-life-weekly-congratulations-pending'
 
 function weekKey(date: Date) {
   const start = new Date(date)
@@ -22,6 +24,58 @@ function weekKey(date: Date) {
   const diff = start.getDay() === 0 ? -6 : 1 - start.getDay()
   start.setDate(start.getDate() + diff)
   return start.toISOString().slice(0, 10)
+}
+
+function getWeekDates(date: Date) {
+  const start = new Date(date)
+  start.setHours(12, 0, 0, 0)
+  const diff = start.getDay() === 0 ? -6 : 1 - start.getDay()
+  start.setDate(start.getDate() + diff)
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(start)
+    day.setDate(start.getDate() + index)
+    return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+  })
+}
+
+function acknowledgedKey(meta: string, date: Date) {
+  return `${USER_ID}:${weekKey(date)}:${meta}`
+}
+
+function isAcknowledged(meta: string, date: Date) {
+  try {
+    const keys = JSON.parse(localStorage.getItem(ACKNOWLEDGED_KEY) ?? '[]')
+    return Array.isArray(keys) && keys.includes(acknowledgedKey(meta, date))
+  } catch {
+    return false
+  }
+}
+
+function acknowledge(meta: string, date: Date) {
+  try {
+    const stored = JSON.parse(localStorage.getItem(ACKNOWLEDGED_KEY) ?? '[]')
+    const keys = Array.isArray(stored) ? stored : []
+    const key = acknowledgedKey(meta, date)
+    if (!keys.includes(key)) {
+      localStorage.setItem(ACKNOWLEDGED_KEY, JSON.stringify([...keys, key]))
+    }
+  } catch {
+    localStorage.setItem(ACKNOWLEDGED_KEY, JSON.stringify([acknowledgedKey(meta, date)]))
+  }
+}
+
+function savePending(goals: string[]) {
+  if (goals.length > 0) localStorage.setItem(PENDING_KEY, JSON.stringify(goals))
+}
+
+function loadPending(): string[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(PENDING_KEY) ?? '[]')
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
 }
 
 export function isCongratulationTime(now: Date) {
@@ -43,6 +97,8 @@ export default function WeeklyCongratulations() {
     setLoading(true)
     setError(null)
 
+    const now = new Date()
+    const weekDates = getWeekDates(now)
     const results = await Promise.allSettled([
       getTrainingGoal(),
       getSleepGoal(),
@@ -54,50 +110,50 @@ export default function WeeklyCongratulations() {
 
     const goals: string[] = []
 
-    if (results[0].status === 'fulfilled') {
+    if (
+      results[0].status === 'fulfilled' &&
+      results[0].value.daysPerWeek !== null &&
+      results[0].value.remainingDays === 0 &&
+      !isAcknowledged('activity', now)
+    ) {
       const training = results[0].value
-      if (training.daysPerWeek !== null && training.remainingDays === 0) {
-        goals.push(`Entrenamiento semanal: ${training.completedDays} de ${training.daysPerWeek} días cumplidos`)
-      }
+      goals.push(`Actividad: ${training.completedDays} de ${training.daysPerWeek} días cumplidos`)
     }
 
     if (results[1].status === 'fulfilled' && results[2].status === 'fulfilled') {
       const sleepGoal = results[1].value
       const sleepRecords = results[2].value
-      if (sleepGoal.minHours !== null) {
+      if (sleepGoal.minHours !== null && !isAcknowledged('sleep', now)) {
         const totalsByDate = new Map<string, number>()
         for (const record of sleepRecords) {
-          totalsByDate.set(
-            record.sleepDate,
-            (totalsByDate.get(record.sleepDate) ?? 0) + record.hoursSlept,
-          )
+          if (weekDates.includes(record.sleepDate)) {
+            totalsByDate.set(record.sleepDate, (totalsByDate.get(record.sleepDate) ?? 0) + record.hoursSlept)
+          }
         }
-        const metCount = [...totalsByDate.values()].filter(
-          (hours) => hours >= sleepGoal.minHours!,
-        ).length
-        if (metCount > 0) {
-          goals.push(`Sueño: ${metCount} ${metCount === 1 ? 'día cumplido' : 'días cumplidos'} con ${sleepGoal.minHours} h o más`)
+        const completedEveryDay = weekDates.every(
+          (date) => (totalsByDate.get(date) ?? 0) >= sleepGoal.minHours!,
+        )
+        if (completedEveryDay) {
+          goals.push(`Sueño: objetivo diario de ${sleepGoal.minHours} h alcanzado durante toda la semana`)
         }
       }
     }
 
-    if (results[3].status === 'fulfilled') {
+    if (results[3].status === 'fulfilled' && results[5].status === 'fulfilled') {
       const hydrationGoal = results[3].value
-      if (hydrationGoal.litersPerDay !== null) {
-        let totalMl: number | null = null
-
-        if (results[4].status === 'fulfilled') {
-          totalMl = results[4].value.totalMl
-        } else if (results[5].status === 'fulfilled') {
-          const now = new Date()
-          const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-          totalMl = results[5].value
-            .filter((entry) => entry.consumedDate === today)
-            .reduce((sum, entry) => sum + entry.amountMl, 0)
+      const entries = results[5].value
+      if (hydrationGoal.litersPerDay !== null && !isAcknowledged('water', now)) {
+        const totalsByDate = new Map<string, number>()
+        for (const entry of entries) {
+          if (weekDates.includes(entry.consumedDate)) {
+            totalsByDate.set(entry.consumedDate, (totalsByDate.get(entry.consumedDate) ?? 0) + entry.amountMl)
+          }
         }
-
-        if (totalMl !== null && totalMl >= hydrationGoal.litersPerDay * 1000) {
-          goals.push(`Hidratación diaria: ${hydrationGoal.litersPerDay} litros cumplidos hoy`)
+        const completedEveryDay = weekDates.every(
+          (date) => (totalsByDate.get(date) ?? 0) >= hydrationGoal.litersPerDay! * 1000,
+        )
+        if (completedEveryDay) {
+          goals.push(`Hidratación: objetivo diario de ${hydrationGoal.litersPerDay} litros alcanzado durante toda la semana`)
         }
       }
     }
@@ -105,16 +161,21 @@ export default function WeeklyCongratulations() {
     setCompleted(goals)
     setLoading(false)
 
-    const allRejected = results.every((result) => result.status === 'rejected')
-    if (allRejected) setError('No se han podido consultar tus objetivos en este momento.')
+    if (results.every((result) => result.status === 'rejected')) {
+      setError('No se han podido consultar tus objetivos en este momento.')
+    }
 
     return goals
   }
 
   async function openManual() {
-    const goalsPromise = loadAchievements()
+    const goals = await loadAchievements()
     setOpen(true)
-    await goalsPromise
+    const now = new Date()
+    if (goals.length > 0) savePending(goals)
+    if (goals.some((goal) => goal.startsWith('Actividad:'))) acknowledge('activity', now)
+    if (goals.some((goal) => goal.startsWith('Sueño:'))) acknowledge('sleep', now)
+    if (goals.some((goal) => goal.startsWith('Hidratación:'))) acknowledge('water', now)
   }
 
   useLayoutEffect(() => {
@@ -130,6 +191,12 @@ export default function WeeklyCongratulations() {
   }, [open])
 
   useEffect(() => {
+    const pending = loadPending()
+    if (pending.length > 0) {
+      setCompleted(pending)
+      setOpen(true)
+    }
+
     const checkSchedule = () => {
       const now = new Date()
       if (!isCongratulationTime(now)) return
@@ -140,6 +207,13 @@ export default function WeeklyCongratulations() {
       void (async () => {
         const goals = await loadAchievements()
         if (goals.length === 0) return
+
+        savePending(goals)
+        for (const goal of goals) {
+          if (goal.startsWith('Actividad:')) acknowledge('activity', now)
+          if (goal.startsWith('Sueño:')) acknowledge('sleep', now)
+          if (goal.startsWith('Hidratación:')) acknowledge('water', now)
+        }
         localStorage.setItem(STORAGE_KEY, key)
         setOpen(true)
       })()
@@ -151,6 +225,7 @@ export default function WeeklyCongratulations() {
   }, [])
 
   function close() {
+    localStorage.removeItem(PENDING_KEY)
     setOpen(false)
   }
 
