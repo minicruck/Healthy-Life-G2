@@ -10,6 +10,7 @@ import TrainingGoalForm from '../components/TrainingGoalForm'
 import SleepGoalForm from '../components/SleepGoalForm'
 import SleepQualityForm from '../components/SleepQualityForm'
 import SleepGoalNotice from '../components/SleepGoalNotice'
+import WeeklyCongratulations from '../components/WeeklyCongratulations'
 
 type Habit =
   | 'activity'
@@ -68,6 +69,7 @@ export default function RegisterActivityPage() {
           </span>
         </div>
         <div className="header-context">
+          <WeeklyCongratulations />
           <span>SCRUM &amp; RUN</span>
           <span>E2 · Hábitos saludables</span>
         </div>
