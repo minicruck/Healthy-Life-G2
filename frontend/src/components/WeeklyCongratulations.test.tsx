@@ -28,6 +28,7 @@ import { getHydrationGoal } from '../services/hydrationGoal'
 import { getWaterToday, listWaterEntries } from '../services/water'
 
 beforeEach(() => {
+  localStorage.clear()
   vi.mocked(getTrainingGoal).mockResolvedValue({
     daysPerWeek: null,
     completedDays: 0,
@@ -104,6 +105,61 @@ describe('WeeklyCongratulations', () => {
     const user = userEvent.setup()
     render(<WeeklyCongratulations />)
 
+    await user.click(screen.getByRole('button', { name: 'Abrir felicitación semanal' }))
+
+    expect(await screen.findByText('Tu siguiente logro te espera')).toBeInTheDocument()
+  })
+
+  it('shows no achievement when no goal is defined', async () => {
+    vi.mocked(getSleepGoal).mockResolvedValue({
+      minHours: null,
+      updatedAt: null,
+      fromDate: '2026-11-18',
+      toDate: '2026-11-24',
+      days: [],
+      latest: null,
+      checked: null,
+      alert: false,
+    })
+    vi.mocked(getHydrationGoal).mockResolvedValue({ litersPerDay: null, updatedAt: null })
+
+    const user = userEvent.setup()
+    render(<WeeklyCongratulations />)
+
+    await user.click(screen.getByRole('button', { name: 'Abrir felicitación semanal' }))
+
+    expect(await screen.findByText('Tu siguiente logro te espera')).toBeInTheDocument()
+  })
+
+  it('restores a visible pending congratulation after entering the app', () => {
+    localStorage.setItem(
+      'healthy-life-weekly-congratulations-pending',
+      JSON.stringify(['Actividad: 3 de 3 días cumplidos']),
+    )
+
+    render(<WeeklyCongratulations />)
+
+    expect(screen.getByRole('dialog', { name: '¡Buen trabajo, demo-user!' })).toBeVisible()
+    expect(screen.getByText(/Actividad: 3 de 3 días cumplidos/i)).toBeVisible()
+  })
+
+  it('does not repeat an acknowledged meta in the same week', async () => {
+    vi.mocked(getTrainingGoal).mockResolvedValue({
+      daysPerWeek: 3,
+      completedDays: 3,
+      remainingDays: 0,
+      weekStart: '2026-11-23',
+      weekEnd: '2026-11-29',
+      updatedAt: null,
+    })
+
+    const user = userEvent.setup()
+    const { unmount } = render(<WeeklyCongratulations />)
+    await user.click(screen.getByRole('button', { name: 'Abrir felicitación semanal' }))
+    expect(await screen.findByText(/Actividad: 3 de 3 días cumplidos/i)).toBeInTheDocument()
+
+    unmount()
+    render(<WeeklyCongratulations />)
     await user.click(screen.getByRole('button', { name: 'Abrir felicitación semanal' }))
 
     expect(await screen.findByText('Tu siguiente logro te espera')).toBeInTheDocument()

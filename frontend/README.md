@@ -204,63 +204,23 @@ La misma aplicación permite alternar entre actividad física, sueño y agua sin
 
 El contrato completo está en [`docs/hu2-api.md`](../docs/hu2-api.md). `POST /api/sleep` registra y `GET /api/sleep` consulta los datos del mismo usuario configurado en el backend. No se envía `userId`.
 
-## HU3 — Registrar consumo diario de agua (SCRUM-3)
+## HU12 — Felicitación semanal
 
+El banner incluye un icono compacto para consultar manualmente las metas semanales de actividad, sueño e hidratación. Cada consulta vuelve a cargar los datos guardados. Sueño e hidratación requieren alcanzar el objetivo diario todos los días de lunes a domingo.
 
+La programación automática puede cambiarse manualmente en `src/components/WeeklyCongratulations.tsx` mediante `WEEKLY_CONGRATULATION_SCHEDULE`:
 
-El contrato completo está en [`docs/hu3-api.md`](../docs/hu3-api.md). El formulario utiliza `POST /api/water` para añadir un consumo; la sección de historial consulta `GET /api/water` y muestra cada registro en una lista sencilla por fecha y cantidad. El total diario se consulta en `GET /api/water/today`.
+```typescript
+export const WEEKLY_CONGRATULATION_SCHEDULE = {
+  dayOfWeek: 1,
+  hour: 12,
+  minute: 0,
+}
+```
 
-Se permiten varios descansos de la misma fecha, incluidas varias siestas. Cada fila conserva su identificador, fecha de creación y horas. Los datos históricos sin clasificación llegan como `sleepType: null` y se muestran como **Sin clasificar**, sin atribuirles un tipo ficticio. El POST permite omitir el tipo solo para conservar compatibilidad con clientes antiguos; el formulario actualizado siempre exige seleccionarlo.
+Por defecto se ejecuta el lunes a las 12:00. Una meta ya reconocida no se vuelve a mostrar durante la misma semana y el popup permanece abierto hasta que el usuario lo cierre.
 
-### Editar un descanso
-
-Cada entrada del desglose diario y de **Ver todos los registros** tiene un botón **Editar**. Abre un diálogo con la fecha, horas y tipo actuales. Se puede cancelar sin enviar peticiones, o guardar los tres campos mediante `PATCH /api/sleep/:id`.
-
-La edición solo se confirma con HTTP `200` y una respuesta válida cuyos datos coincidan con lo enviado y cuyos `id` y `createdAt` sigan siendo los originales. Un error mantiene el borrador. Durante el envío se bloquean los controles y los envíos simultáneos. No se repiten automáticamente POST ni PATCH.
-
-El diálogo permite navegación por teclado, contiene el foco, admite Escape cuando no se está guardando y devuelve el foco al cerrar. Después de confirmar una edición, el foco pasa al encabezado de estadísticas, que sigue presente aunque el registro salga del filtro por cambiar de fecha.
-
-### Fechas y calendario
-
-El navegador y la API calculan hoy en **Europe/Madrid**, independientemente de la zona horaria del ordenador o de Docker. El selector incluye `max` y la validación TypeScript comprueba también las fechas futuras. El servidor vuelve a validarlas y es la autoridad final.
-
-El límite se actualiza a medianoche de Madrid y al recuperar el foco o la visibilidad de la pestaña; contempla días de 23 y 25 horas. Las fechas del usuario siguen siendo cadenas de calendario, sin desplazarlas a otro día mediante UTC.
-
-Los registros futuros guardados por versiones anteriores se conservan. Aparecen identificados en **Todo el historial**, pero no en los períodos recientes. Para editarlos debe corregirse su fecha antes de guardar.
-
-### Estadísticas y dos perspectivas del descanso
-
-Se conservan las cinco métricas anteriores: media por registro, total, cantidad de registros, máximo individual y mínimo individual. Se añade la **media diaria de sueño**, junto con el número de días con registros.
-
-- **Media por registro:** total de horas dividido entre número de registros.
-- **Media diaria:** total de horas dividido entre número de fechas distintas con registros.
-- **Total diario:** suma de todos los registros con el mismo `sleepDate`.
-
-`aggregateSleepDays` agrupa sin modificar ni fusionar las filas. Conserva los registros individuales y los subtotales de Sueño nocturno, Siesta, Otro y Sin clasificar. La suma decimal evita arrastrar artefactos como `0.1 + 0.2`; la presentación de las métricas utiliza como máximo dos decimales. Los registros individuales siguen mostrando la precisión recibida. No se inventan datos para fechas sin registros ni se consideran días de cero horas.
-
-Ejemplo: 7 h nocturnas, 1,5 h de siesta y 1 h de otro descanso el 12/10, más 8 h el 11/10: total **17,5 h**, **4 registros**, **2 días**, media por registro **4,375 h** (presentada como 4,38) y media diaria **8,75 h**. Si la siesta pasa a 2 h, el total diario del 12/10 es **10 h**, el general **18 h** y la media diaria **9 h**, manteniendo 4 registros.
-
-La gráfica original conserva un punto por registro, ordenado por fecha e identificador; los registros del mismo día no se sustituyen por un punto agregado. Debajo, **Tu descanso día a día** añade barras apiladas con una barra por fecha y un segmento por tipo. La categoría Sin clasificar mantiene visibles los datos históricos. Los tooltips y la navegación por teclado complementan el desglose textual accesible de cada día, desde el que también se puede editar.
-
-Los grupos diarios muestran fecha, total, cantidad y detalle. El más reciente se abre inicialmente. Si un día suma más de 24 horas, se indica para revisión, sin borrar datos ni añadir una restricción diaria nueva.
-
-### Períodos, consulta y actualización
-
-Los mismos filtros controlan las seis métricas, ambas gráficas, la tabla y el desglose diario:
-
-| Período           | Registros incluidos                                                 |
-| ----------------- | ------------------------------------------------------------------- |
-| Últimos 7 días    | Hoy en Madrid y los seis días anteriores, ambos extremos incluidos. |
-| Últimos 30 días   | Hoy en Madrid y los 29 días anteriores.                             |
-| Todo el historial | Todos los registros, incluidas fechas futuras históricas.           |
-
-`getSleepRecords()` reutiliza `VITE_API_BASE_URL`. Exige HTTP `200`, un array y registros válidos con identificadores únicos, fechas reales, horas dentro del rango, tipos conocidos o `null` y `createdAt` UTC válido. Un JSON incorrecto no se convierte en una lista vacía. La aplicación no utiliza datos simulados; los mocks están exclusivamente en las pruebas.
-
-El tiempo máximo de las solicitudes es de 15 segundos, incluida la lectura del cuerpo. Las consultas obsoletas se cancelan y sus respuestas se descartan. Cambiar de filtro no repite el GET. Los estados de carga, vacío, datos fuera del período y error tienen mensajes diferenciados.
-
-Tras confirmar POST o PATCH, se consulta de nuevo el servidor. Esto actualiza automáticamente todas las vistas sin duplicar registros. Un fallo de esa consulta muestra un error independiente con **Reintentar consulta** y mantiene el mensaje de éxito del guardado. Reintentar ejecuta únicamente GET; no repite la escritura.
-
-### Organización de HU2
+## Organización de HU2
 
 | Archivos                                                                | Responsabilidad                                                             |
 | ----------------------------------------------------------------------- | --------------------------------------------------------------------------- |
