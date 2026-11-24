@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { listActivities } from '../services/activities'
-import { ACTIVITY_OPTIONS, type Activity } from '../types/activity'
+import {
+  ACTIVITY_OPTIONS,
+  INTENSITY_OPTIONS,
+  type Activity,
+} from '../types/activity'
 import './ActivityHistory.css'
+import './ActivityIntensity.css'
 
 type ActivityHistoryProps = {
   userId?: string
@@ -12,6 +17,10 @@ type ActivityHistoryProps = {
 const activityLabels = Object.fromEntries(
   ACTIVITY_OPTIONS.map(({ value, label }) => [value, label]),
 ) as Record<Activity['activityType'], string>
+
+const intensityLabels = Object.fromEntries(
+  INTENSITY_OPTIONS.map(({ value, label }) => [value, label]),
+) as Record<NonNullable<Activity['intensity']>, string>
 
 function formatDate(date: string) {
   const parsed = new Date(`${date}T12:00:00Z`)
@@ -104,6 +113,15 @@ export default function ActivityHistory({
               <div className="activity-history-item-header">
                 <span className="activity-history-tag">
                   {activityLabels[record.activityType]}
+                </span>
+                {/* HU4 CA2: la intensidad se ve en cada registro del historial. */}
+                <span
+                  className="activity-history-intensity"
+                  data-level={record.intensity ?? 'none'}
+                >
+                  {record.intensity
+                    ? `Intensidad ${intensityLabels[record.intensity].toLowerCase()}`
+                    : 'Intensidad sin registrar'}
                 </span>
                 <time dateTime={record.activityDate}>
                   {formatDate(record.activityDate)}

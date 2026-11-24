@@ -106,6 +106,7 @@ describe('HU2 en la aplicación de Healthy Life', () => {
     fireEvent.change(screen.getByLabelText(/Fecha de la actividad/), {
       target: { value: '2026-10-11' },
     })
+    await user.click(screen.getByRole('radio', { name: 'Alta' }))
     await user.type(
       screen.getByRole('textbox', { name: 'Observaciones' }),
       '  Paseo  ',
@@ -116,12 +117,14 @@ describe('HU2 en la aplicación de Healthy Life', () => {
       '  Paseo  ',
     )
     expect(screen.getByRole('combobox')).toHaveValue('walking')
+    expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
     fetchMock.mockResolvedValue(
       jsonResponse({
         id: 2,
         activityType: 'walking',
         activityDate: '2026-10-11',
         notes: 'Paseo',
+        intensity: 'high',
         createdAt: sleepRecord.createdAt,
       }),
     )
@@ -135,6 +138,7 @@ describe('HU2 en la aplicación de Healthy Life', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
       activityType: 'walking',
       activityDate: '2026-10-11',
+      intensity: 'high',
       notes: 'Paseo',
     })
   })

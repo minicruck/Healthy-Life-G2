@@ -1,0 +1,429 @@
+diff --git a/backend/src/app.ts b/backend/src/app.ts
+index 27224f3..a597bab 100644
+--- a/backend/src/app.ts
++++ b/backend/src/app.ts
+@@ -40,7 +40,7 @@ import {
+ } from "./db.ts";
+ import { validateTrainingGoal } from "./validation.ts";
+ import { saveSleepGoal } from "./db.ts";
+-import { validateSleepGoal } from "./validation.ts";
++import { validateSleepCheckDate, validateSleepGoal } from "./validation.ts";
+ import { buildSleepGoalSummary } from "./sleepGoal.ts";
+ 
+ export interface AppConfig {
+@@ -125,8 +125,15 @@ export function createApp({ db, demoUserId, corsOrigin }: AppConfig) {
+   });
+ 
+   // HU10 — Objetivo mínimo de horas de sueño y cumplimiento diario.
+-  app.get("/api/sleep-goal", (_req, res) => {
+-    res.json(buildSleepGoalSummary(db, demoUserId));
++  // ?date=YYYY-MM-DD evalúa el aviso sobre ese día (el del registro recién guardado).
++  app.get("/api/sleep-goal", (req, res) => {
++    const today = getMadridToday();
++    const date = validateSleepCheckDate(req.query.date, today);
++    if (!date.ok) {
++      res.status(400).json(errorBody("VALIDATION_ERROR", date.message));
++      return;
++    }
++    res.json(buildSleepGoalSummary(db, demoUserId, today, date.value));
+   });
+ 
+   app.put("/api/sleep-goal", (req, res) => {
+diff --git a/backend/src/sleepGoal.ts b/backend/src/sleepGoal.ts
+index 7a43d4d..48b0aca 100644
+--- a/backend/src/sleepGoal.ts
++++ b/backend/src/sleepGoal.ts
+@@ -28,7 +28,12 @@ export interface SleepGoalSummary {
+   days: SleepDayCompliance[];
+   /** Día más reciente con registros, o null si no hay ninguno en la ventana. */
+   latest: SleepDayCompliance | null;
+-  /** true si hay objetivo y el día más reciente con registros no lo alcanza. */
++  /**
++   * Día sobre el que se evalúa el aviso: el pedido con ?date= (por ejemplo, el del
++   * registro recién guardado) o, si no se pide ninguno, el más reciente con registros.
++   */
++  checked: SleepDayCompliance | null;
++  /** true si hay objetivo y el día evaluado (`checked`) no lo alcanza. */
+   alert: boolean;
+ }
+ 
+@@ -36,6 +41,7 @@ export function buildSleepGoalSummary(
+   db: DatabaseSync,
+   userId: string,
+   today = getMadridToday(),
++  checkDate?: string,
+ ): SleepGoalSummary {
+   const goal = findSleepGoal(db, userId);
+   const minHours = goal?.min_hours ?? null;
+@@ -47,6 +53,17 @@ export function buildSleepGoalSummary(
+     met: minHours === null ? null : day.totalHours >= minHours,
+   }));
+   const latest = days[0] ?? null;
++  let checked = latest;
++  if (checkDate !== undefined) {
++    // El día pedido puede quedar fuera de la ventana de 7 días: se calcula aparte.
++    const [day] = sumSleepByDay(db, userId, checkDate, checkDate);
++    const totalHours = day === undefined ? 0 : Math.round(day.totalHours * 100) / 100;
++    checked = {
++      date: checkDate,
++      totalHours,
++      met: minHours === null ? null : (day?.totalHours ?? 0) >= minHours,
++    };
++  }
+   return {
+     minHours,
+     updatedAt: goal?.updated_at ?? null,
+@@ -54,6 +71,7 @@ export function buildSleepGoalSummary(
+     toDate: today,
+     days,
+     latest,
+-    alert: latest !== null && latest.met === false,
++    checked,
++    alert: checked !== null && checked.met === false,
+   };
+ }
+diff --git a/backend/src/validation.ts b/backend/src/validation.ts
+index b5b7eec..299c2fb 100644
+--- a/backend/src/validation.ts
++++ b/backend/src/validation.ts
+@@ -185,6 +185,21 @@ export function validateSleepGoal(body: unknown): SleepGoalValidationResult {
+   return { ok: true, value: { minHours } };
+ }
+ 
++/** HU10 — ?date= opcional: una fecha real YYYY-MM-DD que no sea posterior a hoy. */
++export function validateSleepCheckDate(
++  value: unknown,
++  today: string,
++): { ok: true; value: string | undefined } | { ok: false; message: string } {
++  if (value === undefined) return { ok: true, value: undefined };
++  if (typeof value !== "string" || !isRealSleepDate(value)) {
++    return { ok: false, message: "La fecha que se quiere comprobar no es válida." };
++  }
++  if (value > today) {
++    return { ok: false, message: "No se puede comprobar el objetivo de una fecha futura." };
++  }
++  return { ok: true, value };
++}
++
+ export type WaterValidationResult =
+   | { ok: true; value: { amountMl: number } }
+   | { ok: false; message: string };
+diff --git a/backend/tests/sleepGoal.test.ts b/backend/tests/sleepGoal.test.ts
+index 1158028..2f416c8 100644
+--- a/backend/tests/sleepGoal.test.ts
++++ b/backend/tests/sleepGoal.test.ts
+@@ -131,3 +131,40 @@ test("el cálculo usa el día que se le indica como hoy", () => {
+   assert.equal(summary.fromDate, "2026-10-28");
+   assert.deepEqual(summary.latest, { date: "2026-11-01", totalHours: 6.3, met: false });
+ });
++
++// Caso detectado en la revisión de la PR: el aviso debe evaluar el día del registro
++// recién guardado, no el día más reciente del historial.
++test("con ?date= avisa por el día guardado aunque haya un día más reciente que cumple", async () => {
++  const yesterday = shiftDate(today(), -1);
++  await request(app).put("/api/sleep-goal").send({ minHours: 8 });
++  await sleep(today(), 9);
++  await sleep(yesterday, 5);
++
++  const sinFecha = await request(app).get("/api/sleep-goal");
++  assert.equal(sinFecha.body.alert, false);
++  assert.equal(sinFecha.body.checked.date, today());
++
++  const conFecha = await request(app).get(`/api/sleep-goal?date=${yesterday}`);
++  assert.equal(conFecha.status, 200);
++  assert.equal(conFecha.body.alert, true);
++  assert.deepEqual(conFecha.body.checked, { date: yesterday, totalHours: 5, met: false });
++  assert.equal(conFecha.body.latest.date, today());
++});
++
++test("con ?date= evalúa también días fuera de la ventana de 7 días", async () => {
++  const old = shiftDate(today(), -20);
++  await request(app).put("/api/sleep-goal").send({ minHours: 8 });
++  await sleep(old, 6);
++  const response = await request(app).get(`/api/sleep-goal?date=${old}`);
++  assert.equal(response.body.alert, true);
++  assert.deepEqual(response.body.checked, { date: old, totalHours: 6, met: false });
++  assert.deepEqual(response.body.days, []);
++});
++
++test("rechaza ?date= inválidas o futuras", async () => {
++  for (const date of ["2026-02-30", "ayer", "07/11/2026", shiftDate(today(), 1)]) {
++    const response = await request(app).get(`/api/sleep-goal?date=${encodeURIComponent(date)}`);
++    assert.equal(response.status, 400, date);
++    assert.equal(response.body.error.code, "VALIDATION_ERROR");
++  }
++});
+diff --git a/docs/hu10-api.md b/docs/hu10-api.md
+index dd9cfa7..06d1890 100644
+--- a/docs/hu10-api.md
++++ b/docs/hu10-api.md
+@@ -10,13 +10,15 @@ Referencia Jira: **SCRUM-33** (subtareas SCRUM-55 a SCRUM-58).
+ - Hay **un único objetivo por usuario**; guardarlo de nuevo lo sustituye.
+ - El cumplimiento se calcula **por día**: se suman todos los descansos de esa fecha (noche, siesta y otros) registrados en HU2 y se comparan con el objetivo.
+ - Se revisan los **últimos 7 días** (hoy incluido, calendario `Europe/Madrid`). No se inventan días sin registros.
+-- **Aviso:** si hay objetivo y el día más reciente con registros no lo alcanza, `alert` es `true` y la pantalla muestra una notificación.
++- **Aviso:** si hay objetivo y el día evaluado no lo alcanza, `alert` es `true` y la pantalla muestra una notificación. El día evaluado es el que se pide con `?date=` (la pantalla de sueño envía la fecha del registro recién guardado) o, si no se pide ninguno, el más reciente con registros.
+ - Se usa el usuario de prueba del backend (`DEMO_USER_ID`), como en las demás historias.
+ 
+ ## `GET /api/sleep-goal`
+ 
+ Devuelve el objetivo y el cumplimiento calculado en ese momento.
+ 
++Parámetro opcional `?date=YYYY-MM-DD`: evalúa el aviso sobre ese día, aunque haya días más recientes o quede fuera de la ventana de 7 días. Una fecha inexistente o futura devuelve `400 VALIDATION_ERROR`.
++
+ Sin objetivo ni registros:
+ 
+ ```json
+@@ -27,6 +29,7 @@ Sin objetivo ni registros:
+   "toDate": "2026-11-07",
+   "days": [],
+   "latest": null,
++  "checked": null,
+   "alert": false
+ }
+ ```
+@@ -44,6 +47,7 @@ Con objetivo y registros:
+     { "date": "2026-11-06", "totalHours": 9, "met": true }
+   ],
+   "latest": { "date": "2026-11-07", "totalHours": 6.5, "met": false },
++  "checked": { "date": "2026-11-07", "totalHours": 6.5, "met": false },
+   "alert": true
+ }
+ ```
+@@ -54,7 +58,8 @@ Con objetivo y registros:
+ | `fromDate` / `toDate` | Ventana revisada: últimos 7 días hasta hoy |
+ | `days` | Días con registros, del más reciente al más antiguo; `met` es `null` si no hay objetivo |
+ | `latest` | Día más reciente con registros, o `null` |
+-| `alert` | `true` si hay objetivo y `latest` no lo alcanza |
++| `checked` | Día sobre el que se evalúa el aviso: el de `?date=` o, si no se indica, `latest` |
++| `alert` | `true` si hay objetivo y `checked` no lo alcanza |
+ 
+ ## `PUT /api/sleep-goal`
+ 
+@@ -84,7 +89,7 @@ La tabla se crea de forma aditiva: no modifica `sleep_records` ni ninguna otra.
+ | CA1 · Configurar 9 h, se guarda y se ve | Pestaña **«Objetivo de sueño»** (al final de la barra, para no alterar el orden de HU1 y HU2): formulario y resumen «9 h como mínimo» con el cumplimiento de los últimos 7 días |
+ | CA2 · Valores fuera de rango, vacíos o no numéricos | Error en el formulario sin llamar a la API; la API también responde 400 y conserva el objetivo anterior |
+ | CA3 · Sin objetivo, se indica y se sugiere configurarlo | Pantalla **«Horas de sueño»**: «Aún no has establecido un objetivo mínimo de sueño» con el botón «Configurar objetivo» (y lo mismo en la pestaña del objetivo) |
+-| CA4 · Al guardar un registro por debajo del objetivo, notificación | Pantalla **«Horas de sueño»**: tras guardar, aparece bajo el formulario «No has alcanzado tu objetivo de sueño» con las horas que faltan |
++| CA4 · Al guardar un registro por debajo del objetivo, notificación | Pantalla **«Horas de sueño»**: tras guardar, aparece bajo el formulario «No has alcanzado tu objetivo de sueño» con las horas que faltan. Se evalúa el día del registro guardado, no el más reciente del historial |
+ 
+ El aviso consulta `GET /api/sleep-goal` al entrar en la pantalla de sueño y después de cada registro. Si esa consulta falla, no se muestra nada y el registro de sueño sigue funcionando.
+ 
+diff --git a/frontend/src/components/SleepGoalForm.test.tsx b/frontend/src/components/SleepGoalForm.test.tsx
+index 6ebd3b4..8466edc 100644
+--- a/frontend/src/components/SleepGoalForm.test.tsx
++++ b/frontend/src/components/SleepGoalForm.test.tsx
+@@ -12,6 +12,7 @@ const empty = {
+   toDate: '2026-11-07',
+   days: [],
+   latest: null,
++  checked: null,
+   alert: false,
+ }
+ const withGoal = {
+@@ -23,6 +24,7 @@ const withGoal = {
+     { date: '2026-11-06', totalHours: 9, met: true },
+   ],
+   latest: { date: '2026-11-07', totalHours: 6.5, met: false },
++  checked: { date: '2026-11-07', totalHours: 6.5, met: false },
+   alert: true,
+ }
+ const json = (body: unknown, status = 200) =>
+diff --git a/frontend/src/components/SleepGoalNotice.test.tsx b/frontend/src/components/SleepGoalNotice.test.tsx
+index 59f9330..24029ac 100644
+--- a/frontend/src/components/SleepGoalNotice.test.tsx
++++ b/frontend/src/components/SleepGoalNotice.test.tsx
+@@ -11,6 +11,7 @@ const base = {
+   toDate: '2026-11-07',
+   days: [],
+   latest: null,
++  checked: null,
+   alert: false,
+ }
+ const json = (body: unknown) =>
+@@ -40,7 +41,7 @@ describe('HU10 · avisos en la pantalla de sueño', () => {
+     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+ 
+     const latest = { date: '2026-11-07', totalHours: 5, met: false }
+-    fetchMock.mockResolvedValueOnce(json({ ...base, days: [latest], latest, alert: true }))
++    fetchMock.mockResolvedValueOnce(json({ ...base, days: [latest], latest, checked: latest, alert: true }))
+     rerender(<SleepGoalNotice active revision={1} onConfigure={() => {}} />)
+     expect(await screen.findByRole('alert')).toHaveTextContent(
+       'El 7/11/2026 dormiste 5 h, 3 h menos que tu objetivo de 8 h.',
+@@ -49,7 +50,7 @@ describe('HU10 · avisos en la pantalla de sueño', () => {
+ 
+   it('no muestra nada si se cumple el objetivo, si la API falla o si la pestaña no está activa', async () => {
+     const latest = { date: '2026-11-07', totalHours: 9, met: true }
+-    fetchMock.mockResolvedValueOnce(json({ ...base, days: [latest], latest }))
++    fetchMock.mockResolvedValueOnce(json({ ...base, days: [latest], latest, checked: latest }))
+     const { container, rerender } = render(
+       <SleepGoalNotice active revision={0} onConfigure={() => {}} />,
+     )
+@@ -64,4 +65,18 @@ describe('HU10 · avisos en la pantalla de sueño', () => {
+     rerender(<SleepGoalNotice active={false} revision={2} onConfigure={() => {}} />)
+     expect(fetchMock).toHaveBeenCalledTimes(2)
+   })
++
++  it('evalúa el día del registro guardado aunque haya un día más reciente que cumple', async () => {
++    // Caso de la revisión: 9 h hoy, se guardan 5 h de ayer con objetivo de 8 h.
++    const today = { date: '2026-11-07', totalHours: 9, met: true }
++    const yesterday = { date: '2026-11-06', totalHours: 5, met: false }
++    fetchMock.mockResolvedValueOnce(
++      json({ ...base, days: [today, yesterday], latest: today, checked: yesterday, alert: true }),
++    )
++    render(<SleepGoalNotice active revision={1} checkDate="2026-11-06" onConfigure={() => {}} />)
++    expect(await screen.findByRole('alert')).toHaveTextContent(
++      'El 6/11/2026 dormiste 5 h, 3 h menos que tu objetivo de 8 h.',
++    )
++    expect(fetchMock).toHaveBeenCalledWith('http://localhost:3001/api/sleep-goal?date=2026-11-06')
++  })
+ })
+diff --git a/frontend/src/components/SleepGoalNotice.tsx b/frontend/src/components/SleepGoalNotice.tsx
+index 2f8c973..644ea25 100644
+--- a/frontend/src/components/SleepGoalNotice.tsx
++++ b/frontend/src/components/SleepGoalNotice.tsx
+@@ -1,6 +1,7 @@
+ // HU10 en la pantalla de sueño:
+ // - CA3: si no hay objetivo, lo indica y sugiere configurarlo.
+-// - CA4: al guardar un registro que deja el día por debajo del objetivo, muestra una notificación.
++// - CA4: al guardar un registro que deja SU día por debajo del objetivo, muestra una notificación
++//   (se evalúa la fecha del registro guardado, no la más reciente del historial).
+ import { useEffect, useState } from 'react'
+ import { getSleepGoal, sleepAlertMessage } from '../services/sleepGoal'
+ import type { SleepGoalSummary } from '../types/sleepGoal'
+@@ -10,16 +11,18 @@ type Props = {
+   active: boolean
+   /** Cambia cada vez que se guarda un registro de sueño. */
+   revision: number
++  /** Fecha del último registro guardado: el aviso se evalúa sobre ese día. */
++  checkDate?: string
+   onConfigure: () => void
+ }
+ 
+-export default function SleepGoalNotice({ active, revision, onConfigure }: Props) {
++export default function SleepGoalNotice({ active, revision, checkDate, onConfigure }: Props) {
+   const [summary, setSummary] = useState<SleepGoalSummary | null>(null)
+ 
+   useEffect(() => {
+     if (!active) return
+     let cancelled = false
+-    getSleepGoal()
++    getSleepGoal(checkDate)
+       .then((next) => {
+         if (!cancelled) setSummary(next)
+       })
+@@ -30,7 +33,7 @@ export default function SleepGoalNotice({ active, revision, onConfigure }: Props
+     return () => {
+       cancelled = true
+     }
+-  }, [active, revision])
++  }, [active, revision, checkDate])
+ 
+   if (!active || summary === null) return null
+ 
+diff --git a/frontend/src/pages/RegisterActivityPage.tsx b/frontend/src/pages/RegisterActivityPage.tsx
+index 5451a06..9dd8010 100644
+--- a/frontend/src/pages/RegisterActivityPage.tsx
++++ b/frontend/src/pages/RegisterActivityPage.tsx
+@@ -28,7 +28,10 @@ export default function RegisterActivityPage() {
+   const [sleepRevision, setSleepRevision] = useState(0)
+   const [activityRevision, setActivityRevision] = useState(0)
+   const [showActivityHistory, setShowActivityHistory] = useState(false)
+-  const refreshSleep = useCallback(() => {
++  // HU10: fecha del último registro de sueño guardado, para avisar sobre ese día.
++  const [lastSleepDate, setLastSleepDate] = useState<string | undefined>(undefined)
++  const refreshSleep = useCallback((record?: { sleepDate: string }) => {
++    if (record) setLastSleepDate(record.sleepDate)
+     setSleepRevision((revision) => revision + 1)
+   }, [])
+   const refreshActivities = useCallback(() => {
+@@ -260,6 +263,7 @@ export default function RegisterActivityPage() {
+           <SleepGoalNotice
+             active={isSleep}
+             revision={sleepRevision}
++            checkDate={lastSleepDate}
+             onConfigure={() => setSelectedHabit('sleep-goal')}
+           />
+         </div>
+diff --git a/frontend/src/pages/RegisterSleepPage.test.tsx b/frontend/src/pages/RegisterSleepPage.test.tsx
+index c7c32d1..569f975 100644
+--- a/frontend/src/pages/RegisterSleepPage.test.tsx
++++ b/frontend/src/pages/RegisterSleepPage.test.tsx
+@@ -28,6 +28,7 @@ const noSleepGoal = {
+   toDate: '2026-10-12',
+   days: [],
+   latest: null,
++  checked: null,
+   alert: false,
+ }
+ const isSleepGoalRequest = (input: RequestInfo | URL) =>
+diff --git a/frontend/src/pages/SleepDashboard.test.tsx b/frontend/src/pages/SleepDashboard.test.tsx
+index 580233e..b5f0012 100644
+--- a/frontend/src/pages/SleepDashboard.test.tsx
++++ b/frontend/src/pages/SleepDashboard.test.tsx
+@@ -43,6 +43,7 @@ const noSleepGoal = {
+   toDate: '2026-10-11',
+   days: [],
+   latest: null,
++  checked: null,
+   alert: false,
+ }
+ const isSleepGoalRequest = (input: RequestInfo | URL) =>
+diff --git a/frontend/src/services/sleepGoal.ts b/frontend/src/services/sleepGoal.ts
+index 498e870..7b95f20 100644
+--- a/frontend/src/services/sleepGoal.ts
++++ b/frontend/src/services/sleepGoal.ts
+@@ -53,6 +53,7 @@ function isSummary(value: unknown): value is SleepGoalSummary {
+     Array.isArray(data.days) &&
+     data.days.every(isDay) &&
+     (data.latest === null || isDay(data.latest)) &&
++    (data.checked === null || isDay(data.checked)) &&
+     typeof data.alert === 'boolean'
+   )
+ }
+@@ -83,8 +84,13 @@ async function readSummary(response: Response): Promise<SleepGoalSummary> {
+   return data
+ }
+ 
+-export async function getSleepGoal(): Promise<SleepGoalSummary> {
+-  const response = await fetch(`${getBaseUrl()}/api/sleep-goal`)
++/**
++ * Consulta el objetivo. Con `checkDate` (YYYY-MM-DD) el aviso se evalúa sobre ese día,
++ * por ejemplo el del registro de sueño recién guardado.
++ */
++export async function getSleepGoal(checkDate?: string): Promise<SleepGoalSummary> {
++  const query = checkDate ? `?date=${encodeURIComponent(checkDate)}` : ''
++  const response = await fetch(`${getBaseUrl()}/api/sleep-goal${query}`)
+   return readSummary(response)
+ }
+ 
+@@ -110,11 +116,12 @@ export function formatDay(isoDate: string): string {
+   return `${day}/${month}/${year}`
+ }
+ 
+-/** Texto del aviso cuando el último día registrado no alcanza el objetivo. */
++/** Texto del aviso cuando el día evaluado (`checked`) no alcanza el objetivo. */
+ export function sleepAlertMessage(summary: SleepGoalSummary): string | null {
+-  if (!summary.alert || summary.latest === null || summary.minHours === null) return null
+-  const missing = summary.minHours - summary.latest.totalHours
+-  return `El ${formatDay(summary.latest.date)} dormiste ${formatHours(
+-    summary.latest.totalHours,
++  const day = summary.checked
++  if (!summary.alert || day === null || summary.minHours === null) return null
++  const missing = summary.minHours - day.totalHours
++  return `El ${formatDay(day.date)} dormiste ${formatHours(
++    day.totalHours,
+   )}, ${formatHours(missing)} menos que tu objetivo de ${formatHours(summary.minHours)}.`
+ }
+diff --git a/frontend/src/types/sleepGoal.ts b/frontend/src/types/sleepGoal.ts
+index f5a0660..72ca020 100644
+--- a/frontend/src/types/sleepGoal.ts
++++ b/frontend/src/types/sleepGoal.ts
+@@ -12,5 +12,7 @@ export type SleepGoalSummary = {
+   toDate: string
+   days: SleepDayCompliance[]
+   latest: SleepDayCompliance | null
++  /** Día sobre el que se evalúa el aviso (el pedido con ?date= o, si no, `latest`). */
++  checked: SleepDayCompliance | null
+   alert: boolean
+ }

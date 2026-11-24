@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Activity, ActivityPayload } from '../types/activity'
-import { ApiError, createActivity } from './activities'
+import { ApiError, createActivity, listActivities } from './activities'
 
 const payload: ActivityPayload = {
   activityType: 'walking',
   activityDate: '2026-10-09',
+  intensity: 'moderate',
   notes: 'Paseo por el parque',
 }
 const activity: Activity = {
@@ -95,17 +96,17 @@ describe('POST /api/activities', () => {
       expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toEqual({
         activityType: 'walking',
         activityDate: '2026-10-09',
+        intensity: 'moderate',
       })
     },
   )
 
-  it('strips extra runtime fields, including userId, duration and intensity', async () => {
+  it('strips extra runtime fields, including userId and duration', async () => {
     fetchMock.mockResolvedValue(jsonResponse(activity))
     await createActivity({
       ...payload,
       userId: 6,
       duration: 30,
-      intensity: 'high',
     } as ActivityPayload)
     expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string)).toEqual(
       payload,
@@ -248,6 +249,11 @@ describe('POST /api/activities', () => {
     { ...activity, notes: null },
     { ...activity, notes: 'Different activity' },
     { ...activity, notes: 'x'.repeat(501) },
+    // HU4: la respuesta debe confirmar la misma intensidad enviada.
+    { ...activity, intensity: undefined },
+    { ...activity, intensity: null },
+    { ...activity, intensity: 'high' },
+    { ...activity, intensity: 'extreme' },
     { ...activity, createdAt: '2026-10-09' },
     { ...activity, createdAt: '2026-02-30T10:30:00.000Z' },
     { ...activity, createdAt: '2026-10-09T24:00:00.000Z' },
@@ -338,5 +344,33 @@ describe('POST /api/activities', () => {
       createActivity(payload, { signal: controller.signal }),
     ).rejects.toMatchObject({ kind: 'network' })
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('HU4 · intensidad en GET /api/activities', () => {
+  const stored = { ...activity, id: 2, intensity: 'high' }
+
+  it('devuelve la intensidad de cada registro del historial', async () => {
+    fetchMock.mockResolvedValue(jsonResponse([stored], 200))
+    await expect(listActivities()).resolves.toEqual([stored])
+  })
+
+  it.each([null, undefined])(
+    'acepta registros anteriores a HU4 sin intensidad (%j) como null',
+    async (intensity) => {
+      fetchMock.mockResolvedValue(
+        jsonResponse([{ ...stored, intensity }], 200),
+      )
+      await expect(listActivities()).resolves.toEqual([
+        { ...stored, intensity: null },
+      ])
+    },
+  )
+
+  it('rechaza una intensidad desconocida en el historial', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse([{ ...stored, intensity: 'extreme' }], 200),
+    )
+    await expect(listActivities()).rejects.toMatchObject({ kind: 'unexpected' })
   })
 })

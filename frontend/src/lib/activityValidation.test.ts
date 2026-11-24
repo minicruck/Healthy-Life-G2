@@ -10,6 +10,7 @@ import {
 const validValues: ActivityFormValues = {
   activityType: 'walking',
   activityDate: '2026-10-09',
+  intensity: 'moderate',
   notes: '',
 }
 
@@ -76,10 +77,16 @@ describe('activity validation and payload', () => {
 
   it('requires both activity type and date', () => {
     expect(
-      validateActivity({ activityType: '', activityDate: '', notes: '' }),
+      validateActivity({
+        activityType: '',
+        activityDate: '',
+        intensity: '',
+        notes: '',
+      }),
     ).toEqual({
       activityType: expect.any(String),
       activityDate: expect.any(String),
+      intensity: expect.any(String),
     })
   })
 
@@ -120,6 +127,7 @@ describe('activity validation and payload', () => {
       expect(toActivityPayload({ ...validValues, notes })).toEqual({
         activityType: 'walking',
         activityDate: '2026-10-09',
+        intensity: 'moderate',
       })
     },
   )
@@ -139,6 +147,7 @@ describe('activity validation and payload', () => {
       expect(toActivityPayload(values)).toEqual({
         activityType: 'walking',
         activityDate: '2026-10-09',
+        intensity: 'moderate',
         notes: expected,
       })
       expect(values.notes).toBe(notes)
@@ -155,5 +164,31 @@ describe('activity validation and payload', () => {
     expect(() =>
       toActivityPayload({ ...validValues, notes: 'x'.repeat(501) }),
     ).toThrow()
+    expect(() =>
+      toActivityPayload({ ...validValues, intensity: '' }),
+    ).toThrow()
   })
+
+  // HU4 — Intensidad del entrenamiento
+  it.each(['low', 'moderate', 'high'] as const)(
+    'HU4 CA1: acepta la intensidad %s y la incluye en el JSON',
+    (intensity) => {
+      expect(validateActivity({ ...validValues, intensity })).toEqual({})
+      expect(toActivityPayload({ ...validValues, intensity })).toMatchObject({
+        intensity,
+      })
+    },
+  )
+
+  it.each(['', 'extreme', 'HIGH'])(
+    'HU4 CA3: exige una intensidad válida (%j)',
+    (intensity) => {
+      expect(
+        validateActivity({
+          ...validValues,
+          intensity: intensity as ActivityFormValues['intensity'],
+        }),
+      ).toEqual({ intensity: 'Selecciona la intensidad del entrenamiento.' })
+    },
+  )
 })

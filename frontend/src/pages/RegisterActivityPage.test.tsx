@@ -19,6 +19,7 @@ function activityResponse(overrides: Record<string, unknown> = {}) {
     activityType: 'walking',
     activityDate: '2026-10-09',
     notes: null,
+    intensity: 'moderate',
     createdAt: '2026-10-09T10:30:00.000Z',
     ...overrides,
   }
@@ -46,6 +47,7 @@ async function completeRequiredFields(
   const form = fields()
   await user.selectOptions(form.type, 'walking')
   fireEvent.change(form.date, { target: { value: '2026-10-09' } })
+  await user.click(screen.getByRole('radio', { name: 'Moderada' }))
   return form
 }
 
@@ -93,9 +95,11 @@ describe('Registrar actividad física', () => {
     expect(form.submit).toBeEnabled()
     expect(fetchMock).not.toHaveBeenCalled()
     expect(screen.queryByText(successMessage)).not.toBeInTheDocument()
-    expect(
-      screen.queryByLabelText(/duración|intensidad|usuario/i),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/duración|usuario/i)).not.toBeInTheDocument()
+    // HU4: la intensidad empieza sin seleccionar; no se presupone ningún nivel.
+    for (const name of ['Baja', 'Moderada', 'Alta']) {
+      expect(screen.getByRole('radio', { name })).not.toBeChecked()
+    }
   })
 
   it('permite seleccionar cada tipo de actividad', async () => {
@@ -223,6 +227,7 @@ describe('Registrar actividad física', () => {
       expect(JSON.parse(String(init?.body))).toEqual({
         activityType: 'cycling',
         activityDate: '2026-10-09',
+        intensity: 'moderate',
         notes: 'Ruta por el parque',
       })
       expect(form.type).toHaveValue('')
@@ -244,6 +249,7 @@ describe('Registrar actividad física', () => {
       expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
         activityType: 'walking',
         activityDate: '2026-10-09',
+        intensity: 'moderate',
       })
     },
   )
@@ -293,6 +299,7 @@ describe('Registrar actividad física', () => {
     ).toBeDisabled()
     expect(form.type).toBeDisabled()
     expect(form.date).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Moderada' })).toBeDisabled()
     expect(form.notes).toBeDisabled()
     expect(screen.queryByText(successMessage)).not.toBeInTheDocument()
     // Also exercise the form handler directly: a disabled button alone is not a request lock.

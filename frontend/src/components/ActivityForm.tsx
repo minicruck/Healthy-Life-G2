@@ -1,6 +1,11 @@
 import FieldError from './FieldError'
 import { useActivityForm } from '../hooks/useActivityForm'
-import { ACTIVITY_OPTIONS, type ActivityType } from '../types/activity'
+import {
+  ACTIVITY_OPTIONS,
+  INTENSITY_OPTIONS,
+  type ActivityType,
+} from '../types/activity'
+import './ActivityIntensity.css'
 
 type ActivityFormProps = {
   onSaved?: () => void
@@ -113,11 +118,69 @@ export default function ActivityForm({
           />
         </div>
 
+        {/* HU4 — Intensidad percibida del entrenamiento (CA1 y CA3). */}
+        <fieldset
+          className="form-field intensity-field"
+          aria-invalid={Boolean(visibleError('intensity'))}
+          aria-describedby={`intensity-hint${visibleError('intensity') ? ' intensity-error' : ''}`}
+        >
+          <legend>
+            <span className="field-number" aria-hidden="true">
+              03
+            </span>{' '}
+            Intensidad del entrenamiento{' '}
+            <span className="required-mark" aria-hidden="true">
+              *
+            </span>
+          </legend>
+          <div className="intensity-options">
+            {INTENSITY_OPTIONS.map((option) => (
+              <label
+                key={option.value}
+                className="intensity-option"
+                data-level={option.value}
+              >
+                <input
+                  type="radio"
+                  name="intensity"
+                  value={option.value}
+                  required
+                  checked={values.intensity === option.value}
+                  disabled={submitting}
+                  onChange={() => update('intensity', option.value)}
+                  onBlur={() => blur('intensity')}
+                  aria-labelledby={`intensity-${option.value}-label`}
+                  aria-describedby={`intensity-${option.value}-hint`}
+                />
+                <span
+                  className="intensity-option-label"
+                  id={`intensity-${option.value}-label`}
+                >
+                  {option.label}
+                </span>
+                <span
+                  className="intensity-option-hint"
+                  id={`intensity-${option.value}-hint`}
+                >
+                  {option.hint}
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="field-hint" id="intensity-hint">
+            Cómo de exigente notaste el entrenamiento.
+          </p>
+          <FieldError
+            id="intensity-error"
+            message={visibleError('intensity')}
+          />
+        </fieldset>
+
         <div className="form-field notes-field">
           <div className="label-row">
             <label htmlFor="notes">
               <span className="field-number" aria-hidden="true">
-                03
+                04
               </span>{' '}
               Observaciones
             </label>

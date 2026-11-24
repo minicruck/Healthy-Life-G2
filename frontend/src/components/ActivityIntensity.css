@@ -1,0 +1,141 @@
+/* HU4 — Intensidad del entrenamiento: selector del formulario y etiqueta del historial. */
+.intensity-field {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.intensity-field legend {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 11px;
+}
+
+.intensity-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* La etiqueta global usa flex en fila; aquí cada opción es una tarjeta en columna. */
+.intensity-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 0;
+  padding: 11px 12px 12px 14px;
+  border: 1px solid #858c7f;
+  border-left-width: 4px;
+  border-radius: 3px;
+  background: #fffefa;
+  cursor: pointer;
+  transition:
+    border-color 160ms,
+    background-color 160ms,
+    box-shadow 160ms;
+}
+
+.intensity-option[data-level='low'] { border-left-color: #5f8a5a; }
+.intensity-option[data-level='moderate'] { border-left-color: #c08a2c; }
+.intensity-option[data-level='high'] { border-left-color: var(--red); }
+
+/* El radio nativo se mantiene accesible (teclado y lector de pantalla) pero invisible. */
+.intensity-option input[type='radio'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.intensity-option:hover {
+  border-color: #707a63;
+}
+
+.intensity-option:has(input:checked) {
+  background: #fff;
+  border-top-color: var(--ink);
+  border-right-color: var(--ink);
+  border-bottom-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+.intensity-option:has(input:checked) .intensity-option-label::after {
+  content: ' ✓';
+}
+
+.intensity-option:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.intensity-option:has(input:disabled) {
+  background: #eeefe9;
+  cursor: not-allowed;
+}
+
+.intensity-field[aria-invalid='true'] .intensity-option {
+  border-top-color: var(--error);
+  border-right-color: var(--error);
+  border-bottom-color: var(--error);
+  background: #fff9f7;
+}
+
+.intensity-option-label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.intensity-option-hint {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.intensity-field .field-hint {
+  margin-top: 8px;
+}
+
+@media (max-width: 560px) {
+  .intensity-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Historial (CA2) */
+.activity-history-intensity {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.activity-history-intensity::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #b6b8ae;
+}
+
+.activity-history-intensity[data-level='low']::before { background: #5f8a5a; }
+.activity-history-intensity[data-level='moderate']::before { background: #c08a2c; }
+.activity-history-intensity[data-level='high']::before { background: var(--red); }
+
+.activity-history-intensity[data-level='none'] {
+  color: var(--muted);
+  font-weight: 400;
+}

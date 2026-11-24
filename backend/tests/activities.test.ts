@@ -16,7 +16,7 @@ beforeEach(() => {
 test("registra una actividad válida, devuelve 201 y queda guardada", async () => {
   const res = await request(app)
     .post("/api/activities")
-    .send({ activityType: "walking", activityDate: "2026-10-09", notes: "Caminata por el parque" });
+    .send({ activityType: "walking", activityDate: "2026-10-09", notes: "Caminata por el parque", intensity: "moderate" });
 
   assert.equal(res.status, 201);
   assert.equal(res.body.id, 1);
@@ -34,7 +34,7 @@ test("registra una actividad válida, devuelve 201 y queda guardada", async () =
 test("las notas son opcionales y se devuelven como null", async () => {
   const res = await request(app)
     .post("/api/activities")
-    .send({ activityType: "gym", activityDate: "2026-10-08" });
+    .send({ activityType: "gym", activityDate: "2026-10-08", intensity: "high" });
   assert.equal(res.status, 201);
   assert.equal(res.body.notes, null);
 });

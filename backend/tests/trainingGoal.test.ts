@@ -70,7 +70,7 @@ test("cuenta días diferentes, ignora actividades futuras o de semanas pasadas",
   ]) {
     const result = await request(app)
       .post("/api/activities")
-      .send({ activityType: "walking", activityDate: date, notes: note });
+      .send({ activityType: "walking", activityDate: date, notes: note, intensity: "low" });
     assert.equal(result.status, 201);
   }
   const result = await request(app).get("/api/training-goal");
@@ -83,7 +83,7 @@ test("el progreso se limita a cero días pendientes después de superar la meta"
   const today = getMadridToday();
   await request(app).put("/api/training-goal").send({ daysPerWeek: 1 });
   await request(app).post("/api/activities").send({
-    activityType: "running", activityDate: today,
+    activityType: "running", activityDate: today, intensity: "high",
   });
   const progress = await request(app).get("/api/training-goal");
   assert.equal(progress.body.completedDays, 1);
@@ -106,7 +106,7 @@ test("conserva la meta y el progreso al cerrar y reabrir SQLite", async () => {
     assert.equal(save.status, 200);
     const activity = await request(persistedApp)
       .post("/api/activities")
-      .send({ activityType: "gym", activityDate: getMadridToday() });
+      .send({ activityType: "gym", activityDate: getMadridToday(), intensity: "moderate" });
     assert.equal(activity.status, 201);
     persistedDb.close();
 

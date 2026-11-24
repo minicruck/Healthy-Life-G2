@@ -4,9 +4,14 @@ import { getMadridToday } from "./sleepCalendar.ts";
 
 export const ACTIVITY_TYPES = ["walking", "running", "cycling", "gym", "other"] as const;
 export const NOTES_MAX_LENGTH = 500;
+/** HU4 — Niveles de intensidad percibida del entrenamiento (docs/hu4-api.md). */
+export const INTENSITY_LEVELS = ["low", "moderate", "high"] as const;
 
 export type ValidationResult =
-  | { ok: true; value: { activityType: string; activityDate: string; notes: string | null } }
+  | {
+      ok: true;
+      value: { activityType: string; activityDate: string; notes: string | null; intensity: string };
+    }
   | { ok: false; message: string };
 
 function isRealDate(value: string): boolean {
@@ -25,7 +30,7 @@ export function validateNewActivity(body: unknown): ValidationResult {
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
     return { ok: false, message: "El cuerpo de la petición debe ser un objeto JSON." };
   }
-  const { activityType, activityDate, notes } = body as Record<string, unknown>;
+  const { activityType, activityDate, notes, intensity } = body as Record<string, unknown>;
 
   if (typeof activityType !== "string" || !(ACTIVITY_TYPES as readonly string[]).includes(activityType)) {
     return {
@@ -50,7 +55,15 @@ export function validateNewActivity(body: unknown): ValidationResult {
     cleanNotes = trimmed === "" ? null : trimmed;
   }
 
-  return { ok: true, value: { activityType, activityDate, notes: cleanNotes } };
+  // HU4 CA3: no se guarda un entrenamiento sin una intensidad válida.
+  if (typeof intensity !== "string" || !(INTENSITY_LEVELS as readonly string[]).includes(intensity)) {
+    return {
+      ok: false,
+      message: `Selecciona una intensidad válida. Valores permitidos: ${INTENSITY_LEVELS.join(", ")}.`,
+    };
+  }
+
+  return { ok: true, value: { activityType, activityDate, notes: cleanNotes, intensity } };
 }
 
 export const SLEEP_TYPES = ["night", "nap", "other"] as const;

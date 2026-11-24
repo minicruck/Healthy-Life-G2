@@ -1,0 +1,1302 @@
+diff --git a/backend/src/app.ts b/backend/src/app.ts
+index 96ab24e..27224f3 100644
+--- a/backend/src/app.ts
++++ b/backend/src/app.ts
+@@ -39,6 +39,9 @@ import {
+   saveTrainingGoal,
+ } from "./db.ts";
+ import { validateTrainingGoal } from "./validation.ts";
++import { saveSleepGoal } from "./db.ts";
++import { validateSleepGoal } from "./validation.ts";
++import { buildSleepGoalSummary } from "./sleepGoal.ts";
+ 
+ export interface AppConfig {
+   db: DatabaseSync;
+@@ -121,6 +124,21 @@ export function createApp({ db, demoUserId, corsOrigin }: AppConfig) {
+     res.json(trainingGoalSummary());
+   });
+ 
++  // HU10 — Objetivo mínimo de horas de sueño y cumplimiento diario.
++  app.get("/api/sleep-goal", (_req, res) => {
++    res.json(buildSleepGoalSummary(db, demoUserId));
++  });
++
++  app.put("/api/sleep-goal", (req, res) => {
++    const result = validateSleepGoal(req.body);
++    if (!result.ok) {
++      res.status(400).json(errorBody("VALIDATION_ERROR", result.message));
++      return;
++    }
++    saveSleepGoal(db, demoUserId, result.value.minHours);
++    res.json(buildSleepGoalSummary(db, demoUserId));
++  });
++
+   // HU9 — Configurar meta diaria de hidratación.
+   app.get("/api/hydration-goal", (_req, res) => {
+     const goal = findHydrationGoal(db, demoUserId);
+diff --git a/backend/src/db.ts b/backend/src/db.ts
+index d5620c8..3ed9383 100644
+--- a/backend/src/db.ts
++++ b/backend/src/db.ts
+@@ -107,9 +107,58 @@ export function openDatabase(path: string): DatabaseSync {
+       updated_at    TEXT NOT NULL
+     )
+   `);
++  // HU10 — un único objetivo mínimo de horas de sueño por usuario.
++  db.exec(`
++    CREATE TABLE IF NOT EXISTS sleep_goals (
++      user_id    TEXT PRIMARY KEY,
++      min_hours  REAL NOT NULL CHECK (min_hours > 0 AND min_hours <= 24),
++      updated_at TEXT NOT NULL
++    )
++  `);
+   return db;
+ }
+ 
++export interface SleepGoalRow {
++  user_id: string;
++  min_hours: number;
++  updated_at: string;
++}
++
++export function findSleepGoal(db: DatabaseSync, userId: string): SleepGoalRow | undefined {
++  return db.prepare("SELECT * FROM sleep_goals WHERE user_id = ?").get(userId) as
++    | SleepGoalRow
++    | undefined;
++}
++
++export function saveSleepGoal(db: DatabaseSync, userId: string, minHours: number): SleepGoalRow {
++  const updatedAt = new Date().toISOString();
++  db.prepare(`
++    INSERT INTO sleep_goals (user_id, min_hours, updated_at)
++    VALUES (?, ?, ?)
++    ON CONFLICT(user_id) DO UPDATE SET
++      min_hours = excluded.min_hours,
++      updated_at = excluded.updated_at
++  `).run(userId, minHours, updatedAt);
++  return findSleepGoal(db, userId)!;
++}
++
++/** Suma las horas de todos los descansos (noche, siesta, otro) de cada fecha del rango. */
++export function sumSleepByDay(
++  db: DatabaseSync,
++  userId: string,
++  fromDate: string,
++  toDate: string,
++): { date: string; totalHours: number }[] {
++  const rows = db.prepare(`
++    SELECT sleep_date AS date, SUM(hours_slept) AS total_hours
++    FROM sleep_records
++    WHERE user_id = ? AND sleep_date >= ? AND sleep_date <= ?
++    GROUP BY sleep_date
++    ORDER BY sleep_date DESC
++  `).all(userId, fromDate, toDate) as { date: string; total_hours: number }[];
++  return rows.map((row) => ({ date: row.date, totalHours: row.total_hours }));
++}
++
+ export interface TrainingGoalRow {
+   user_id: string;
+   days_per_week: number;
+diff --git a/backend/src/sleepGoal.ts b/backend/src/sleepGoal.ts
+new file mode 100644
+index 0000000..7a43d4d
+--- /dev/null
++++ b/backend/src/sleepGoal.ts
+@@ -0,0 +1,59 @@
++// HU10 — cálculo del cumplimiento diario del objetivo mínimo de sueño.
++import type { DatabaseSync } from "node:sqlite";
++import { findSleepGoal, sumSleepByDay } from "./db.ts";
++import { getMadridToday } from "./sleepCalendar.ts";
++
++/** Número de días (incluido hoy) que se revisan para el cumplimiento. */
++export const SLEEP_GOAL_WINDOW_DAYS = 7;
++
++/** Resta días a una fecha YYYY-MM-DD sin depender de la zona horaria. */
++export function shiftDate(isoDate: string, days: number): string {
++  const [year, month, day] = isoDate.split("-").map(Number);
++  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
++}
++
++export interface SleepDayCompliance {
++  date: string;
++  totalHours: number;
++  /** null cuando todavía no hay objetivo configurado. */
++  met: boolean | null;
++}
++
++export interface SleepGoalSummary {
++  minHours: number | null;
++  updatedAt: string | null;
++  fromDate: string;
++  toDate: string;
++  /** Días con registros de sueño en la ventana, del más reciente al más antiguo. */
++  days: SleepDayCompliance[];
++  /** Día más reciente con registros, o null si no hay ninguno en la ventana. */
++  latest: SleepDayCompliance | null;
++  /** true si hay objetivo y el día más reciente con registros no lo alcanza. */
++  alert: boolean;
++}
++
++export function buildSleepGoalSummary(
++  db: DatabaseSync,
++  userId: string,
++  today = getMadridToday(),
++): SleepGoalSummary {
++  const goal = findSleepGoal(db, userId);
++  const minHours = goal?.min_hours ?? null;
++  const fromDate = shiftDate(today, -(SLEEP_GOAL_WINDOW_DAYS - 1));
++  const days = sumSleepByDay(db, userId, fromDate, today).map((day) => ({
++    date: day.date,
++    // Redondeo a 2 decimales para evitar restos de coma flotante al sumar.
++    totalHours: Math.round(day.totalHours * 100) / 100,
++    met: minHours === null ? null : day.totalHours >= minHours,
++  }));
++  const latest = days[0] ?? null;
++  return {
++    minHours,
++    updatedAt: goal?.updated_at ?? null,
++    fromDate,
++    toDate: today,
++    days,
++    latest,
++    alert: latest !== null && latest.met === false,
++  };
++}
+diff --git a/backend/src/validation.ts b/backend/src/validation.ts
+index 47191d3..b5b7eec 100644
+--- a/backend/src/validation.ts
++++ b/backend/src/validation.ts
+@@ -161,6 +161,30 @@ export function validateTrainingGoal(body: unknown): TrainingGoalValidationResul
+   return { ok: true, value: { daysPerWeek } };
+ }
+ 
++export type SleepGoalValidationResult =
++  | { ok: true; value: { minHours: number } }
++  | { ok: false; message: string };
++
++// HU10 — el objetivo mínimo de sueño es un número de horas mayor que 0 y como máximo 24.
++export function validateSleepGoal(body: unknown): SleepGoalValidationResult {
++  if (typeof body !== "object" || body === null || Array.isArray(body)) {
++    return { ok: false, message: "El cuerpo de la petición debe ser un objeto JSON." };
++  }
++  const minHours = (body as Record<string, unknown>).minHours;
++  if (
++    typeof minHours !== "number" ||
++    !Number.isFinite(minHours) ||
++    minHours <= 0 ||
++    minHours > 24
++  ) {
++    return {
++      ok: false,
++      message: "El objetivo de sueño debe ser un número de horas mayor que 0 y como máximo 24.",
++    };
++  }
++  return { ok: true, value: { minHours } };
++}
++
+ export type WaterValidationResult =
+   | { ok: true; value: { amountMl: number } }
+   | { ok: false; message: string };
+diff --git a/backend/tests/sleepGoal.test.ts b/backend/tests/sleepGoal.test.ts
+new file mode 100644
+index 0000000..1158028
+--- /dev/null
++++ b/backend/tests/sleepGoal.test.ts
+@@ -0,0 +1,133 @@
++// Pruebas de HU10 — Objetivo mínimo de horas de sueño.
++import { test, beforeEach, afterEach } from "node:test";
++import assert from "node:assert/strict";
++import request from "supertest";
++import { createApp } from "../src/app.ts";
++import { openDatabase } from "../src/db.ts";
++import { getMadridToday } from "../src/sleepCalendar.ts";
++import { buildSleepGoalSummary, shiftDate } from "../src/sleepGoal.ts";
++
++let db: ReturnType<typeof openDatabase>;
++let app: ReturnType<typeof createApp>;
++
++beforeEach(() => {
++  db = openDatabase(":memory:");
++  app = createApp({ db, demoUserId: "test-user", corsOrigin: "http://localhost:5173" });
++});
++afterEach(() => db.close());
++
++const today = () => getMadridToday();
++
++async function sleep(sleepDate: string, hoursSlept: number, sleepType = "night") {
++  const response = await request(app).post("/api/sleep").send({ sleepDate, hoursSlept, sleepType });
++  assert.equal(response.status, 201);
++}
++
++test("sin objetivo ni registros devuelve un resumen vacío y sin aviso", async () => {
++  const response = await request(app).get("/api/sleep-goal");
++  assert.equal(response.status, 200);
++  assert.equal(response.body.minHours, null);
++  assert.equal(response.body.updatedAt, null);
++  assert.deepEqual(response.body.days, []);
++  assert.equal(response.body.latest, null);
++  assert.equal(response.body.alert, false);
++  assert.equal(response.body.toDate, today());
++  assert.equal(response.body.fromDate, shiftDate(today(), -6));
++});
++
++test("guarda el objetivo (admite decimales) y lo sustituye al cambiarlo", async () => {
++  const first = await request(app).put("/api/sleep-goal").send({ minHours: 8 });
++  assert.equal(first.status, 200);
++  assert.equal(first.body.minHours, 8);
++  assert.ok(!Number.isNaN(Date.parse(first.body.updatedAt)));
++
++  const second = await request(app).put("/api/sleep-goal").send({ minHours: 7.5 });
++  assert.equal(second.status, 200);
++  assert.equal((await request(app).get("/api/sleep-goal")).body.minHours, 7.5);
++  const rows = db.prepare("SELECT COUNT(*) AS n FROM sleep_goals").get() as { n: number };
++  assert.equal(rows.n, 1);
++});
++
++test("rechaza valores fuera de rango, vacíos o no numéricos y conserva el anterior", async () => {
++  await request(app).put("/api/sleep-goal").send({ minHours: 8 });
++  for (const minHours of [undefined, null, 0, -1, 24.5, 25, "8", "", {}, true, Number.NaN]) {
++    const response = await request(app).put("/api/sleep-goal").send({ minHours });
++    assert.equal(response.status, 400, String(minHours));
++    assert.equal(response.body.error.code, "VALIDATION_ERROR");
++  }
++  const malformed = await request(app)
++    .put("/api/sleep-goal")
++    .set("Content-Type", "application/json")
++    .send("{ no es json");
++  assert.equal(malformed.status, 400);
++  assert.equal((await request(app).get("/api/sleep-goal")).body.minHours, 8);
++});
++
++test("admite exactamente 24 horas", async () => {
++  const response = await request(app).put("/api/sleep-goal").send({ minHours: 24 });
++  assert.equal(response.status, 200);
++  assert.equal(response.body.minHours, 24);
++});
++
++test("avisa cuando el último día registrado no alcanza el objetivo (suma noche y siesta)", async () => {
++  await request(app).put("/api/sleep-goal").send({ minHours: 8 });
++  await sleep(today(), 6);
++  await sleep(today(), 1, "nap");
++
++  const response = await request(app).get("/api/sleep-goal");
++  assert.equal(response.body.alert, true);
++  assert.deepEqual(response.body.latest, { date: today(), totalHours: 7, met: false });
++});
++
++test("no avisa cuando el último día registrado alcanza el objetivo", async () => {
++  await request(app).put("/api/sleep-goal").send({ minHours: 8 });
++  await sleep(shiftDate(today(), -1), 5);
++  await sleep(today(), 9);
++
++  const response = await request(app).get("/api/sleep-goal");
++  assert.equal(response.body.alert, false);
++  assert.deepEqual(
++    response.body.days.map((day: { date: string; met: boolean }) => [day.date, day.met]),
++    [
++      [today(), true],
++      [shiftDate(today(), -1), false],
++    ],
++  );
++});
++
++test("solo revisa los últimos 7 días y no inventa días sin registros", async () => {
++  await request(app).put("/api/sleep-goal").send({ minHours: 8 });
++  await sleep(shiftDate(today(), -7), 4);
++  await sleep(shiftDate(today(), -2), 6);
++
++  const response = await request(app).get("/api/sleep-goal");
++  assert.equal(response.body.days.length, 1);
++  assert.equal(response.body.latest.date, shiftDate(today(), -2));
++  assert.equal(response.body.alert, true);
++});
++
++test("sin objetivo calcula los totales pero no marca cumplimiento ni avisa", async () => {
++  await sleep(today(), 5);
++  const response = await request(app).get("/api/sleep-goal");
++  assert.equal(response.body.latest.totalHours, 5);
++  assert.equal(response.body.latest.met, null);
++  assert.equal(response.body.alert, false);
++});
++
++test("el cálculo usa el día que se le indica como hoy", () => {
++  db.prepare("INSERT INTO sleep_goals (user_id, min_hours, updated_at) VALUES (?, ?, ?)").run(
++    "test-user",
++    8,
++    new Date().toISOString(),
++  );
++  db.prepare(
++    "INSERT INTO sleep_records (user_id, sleep_date, hours_slept, created_at, sleep_type) VALUES (?, ?, ?, ?, ?)",
++  ).run("test-user", "2026-11-01", 6.1, new Date().toISOString(), "night");
++  db.prepare(
++    "INSERT INTO sleep_records (user_id, sleep_date, hours_slept, created_at, sleep_type) VALUES (?, ?, ?, ?, ?)",
++  ).run("test-user", "2026-11-01", 0.2, new Date().toISOString(), "nap");
++
++  const summary = buildSleepGoalSummary(db, "test-user", "2026-11-03");
++  assert.equal(summary.fromDate, "2026-10-28");
++  assert.deepEqual(summary.latest, { date: "2026-11-01", totalHours: 6.3, met: false });
++});
+diff --git a/docs/hu10-api.md b/docs/hu10-api.md
+new file mode 100644
+index 0000000..dd9cfa7
+--- /dev/null
++++ b/docs/hu10-api.md
+@@ -0,0 +1,91 @@
++# HU10 — Objetivo mínimo de horas de sueño
++
++Referencia Jira: **SCRUM-33** (subtareas SCRUM-55 a SCRUM-58).
++
++> Como usuario de Healthy Life, quiero fijar un objetivo mínimo de horas de sueño diarias para que me notifiquen si no cumplo lo recomendable.
++
++## Alcance
++
++- El usuario fija un **objetivo mínimo de horas de sueño al día**: un número mayor que 0 y como máximo 24 (se admiten decimales, como 7,5).
++- Hay **un único objetivo por usuario**; guardarlo de nuevo lo sustituye.
++- El cumplimiento se calcula **por día**: se suman todos los descansos de esa fecha (noche, siesta y otros) registrados en HU2 y se comparan con el objetivo.
++- Se revisan los **últimos 7 días** (hoy incluido, calendario `Europe/Madrid`). No se inventan días sin registros.
++- **Aviso:** si hay objetivo y el día más reciente con registros no lo alcanza, `alert` es `true` y la pantalla muestra una notificación.
++- Se usa el usuario de prueba del backend (`DEMO_USER_ID`), como en las demás historias.
++
++## `GET /api/sleep-goal`
++
++Devuelve el objetivo y el cumplimiento calculado en ese momento.
++
++Sin objetivo ni registros:
++
++```json
++{
++  "minHours": null,
++  "updatedAt": null,
++  "fromDate": "2026-11-01",
++  "toDate": "2026-11-07",
++  "days": [],
++  "latest": null,
++  "alert": false
++}
++```
++
++Con objetivo y registros:
++
++```json
++{
++  "minHours": 8,
++  "updatedAt": "2026-11-07T08:00:00.000Z",
++  "fromDate": "2026-11-01",
++  "toDate": "2026-11-07",
++  "days": [
++    { "date": "2026-11-07", "totalHours": 6.5, "met": false },
++    { "date": "2026-11-06", "totalHours": 9, "met": true }
++  ],
++  "latest": { "date": "2026-11-07", "totalHours": 6.5, "met": false },
++  "alert": true
++}
++```
++
++| Campo | Significado |
++| --- | --- |
++| `minHours` | Objetivo en horas, o `null` si no se ha configurado |
++| `fromDate` / `toDate` | Ventana revisada: últimos 7 días hasta hoy |
++| `days` | Días con registros, del más reciente al más antiguo; `met` es `null` si no hay objetivo |
++| `latest` | Día más reciente con registros, o `null` |
++| `alert` | `true` si hay objetivo y `latest` no lo alcanza |
++
++## `PUT /api/sleep-goal`
++
++```json
++{ "minHours": 8 }
++```
++
++- `200 OK` con el mismo resumen que el `GET`.
++- `400 VALIDATION_ERROR` si `minHours` falta, no es un número, es menor o igual que 0 o mayor que 24. El objetivo anterior se conserva.
++
++## Persistencia
++
++Tabla `sleep_goals` en la misma base SQLite:
++
++| Campo | Tipo | Uso |
++| --- | --- | --- |
++| `user_id` | `TEXT PRIMARY KEY` | Un objetivo por usuario |
++| `min_hours` | `REAL NOT NULL` | Entre 0 (excluido) y 24 |
++| `updated_at` | `TEXT NOT NULL` | Última modificación, en UTC |
++
++La tabla se crea de forma aditiva: no modifica `sleep_records` ni ninguna otra.
++
++## Interfaz y criterios de aceptación
++
++| Criterio (Miro) | Dónde se cumple |
++| --- | --- |
++| CA1 · Configurar 9 h, se guarda y se ve | Pestaña **«Objetivo de sueño»** (al final de la barra, para no alterar el orden de HU1 y HU2): formulario y resumen «9 h como mínimo» con el cumplimiento de los últimos 7 días |
++| CA2 · Valores fuera de rango, vacíos o no numéricos | Error en el formulario sin llamar a la API; la API también responde 400 y conserva el objetivo anterior |
++| CA3 · Sin objetivo, se indica y se sugiere configurarlo | Pantalla **«Horas de sueño»**: «Aún no has establecido un objetivo mínimo de sueño» con el botón «Configurar objetivo» (y lo mismo en la pestaña del objetivo) |
++| CA4 · Al guardar un registro por debajo del objetivo, notificación | Pantalla **«Horas de sueño»**: tras guardar, aparece bajo el formulario «No has alcanzado tu objetivo de sueño» con las horas que faltan |
++
++El aviso consulta `GET /api/sleep-goal` al entrar en la pantalla de sueño y después de cada registro. Si esa consulta falla, no se muestra nada y el registro de sueño sigue funcionando.
++
++En las pruebas de HU2 (`SleepDashboard.test.tsx` y `RegisterSleepPage.test.tsx`) solo se ha cambiado la preparación: las peticiones a `/api/sleep-goal` se responden aparte, para que los recuentos de peticiones sigan midiendo únicamente `/api/sleep`. Ninguna comprobación de HU2 cambia.
+diff --git a/frontend/src/components/SleepGoalForm.css b/frontend/src/components/SleepGoalForm.css
+new file mode 100644
+index 0000000..d01fd09
+--- /dev/null
++++ b/frontend/src/components/SleepGoalForm.css
+@@ -0,0 +1,87 @@
++.sleep-goal-layout {
++  display: flex;
++  flex-direction: column;
++  gap: 24px;
++}
++
++.sleep-goal-summary {
++  padding: 18px 20px;
++  border: 1px solid var(--line);
++  background: #f8f6f2;
++  border-radius: 3px;
++}
++
++.sleep-goal-summary p {
++  margin: 0 0 8px;
++  color: var(--muted);
++}
++
++.sleep-goal-summary strong {
++  display: block;
++  color: var(--ink);
++  font-size: 24px;
++  line-height: 1.3;
++}
++
++.sleep-goal-days {
++  list-style: none;
++  margin: 16px 0 0;
++  padding: 0;
++  display: grid;
++  gap: 6px;
++}
++
++.sleep-goal-days li {
++  display: flex;
++  justify-content: space-between;
++  gap: 12px;
++  font-size: 13px;
++  color: var(--ink);
++  border-bottom: 1px solid var(--line);
++  padding-bottom: 6px;
++}
++
++.sleep-goal-days .met {
++  color: #34492b;
++}
++
++.sleep-goal-days .missed {
++  color: #8e162a;
++  font-weight: 600;
++}
++
++.sleep-goal-alert {
++  padding: 14px 15px;
++  border-left: 3px solid var(--red);
++  background: #fbefec;
++  color: #8e162a;
++  font-size: 13px;
++  line-height: 1.5;
++}
++
++.sleep-goal-alert strong {
++  display: block;
++  margin-bottom: 2px;
++}
++
++.sleep-goal-error {
++  color: #8e162a;
++}
++
++.sleep-goal-hint {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 16px;
++  flex-wrap: wrap;
++  padding: 12px 15px;
++  margin-top: 16px;
++  border: 1px solid var(--line);
++  background: #f8f6f2;
++  font-size: 13px;
++  color: var(--ink);
++}
++
++#sleep-panel > .sleep-goal-alert {
++  margin-top: 16px;
++}
+diff --git a/frontend/src/components/SleepGoalForm.test.tsx b/frontend/src/components/SleepGoalForm.test.tsx
+new file mode 100644
+index 0000000..6ebd3b4
+--- /dev/null
++++ b/frontend/src/components/SleepGoalForm.test.tsx
+@@ -0,0 +1,123 @@
++import { render, screen, waitFor } from '@testing-library/react'
++import userEvent from '@testing-library/user-event'
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
++import SleepGoalForm from './SleepGoalForm'
++import { sleepAlertMessage, validateSleepGoalHours } from '../services/sleepGoal'
++
++const fetchMock = vi.fn<typeof fetch>()
++const empty = {
++  minHours: null,
++  updatedAt: null,
++  fromDate: '2026-11-01',
++  toDate: '2026-11-07',
++  days: [],
++  latest: null,
++  alert: false,
++}
++const withGoal = {
++  ...empty,
++  minHours: 8,
++  updatedAt: '2026-11-07T08:00:00.000Z',
++  days: [
++    { date: '2026-11-07', totalHours: 6.5, met: false },
++    { date: '2026-11-06', totalHours: 9, met: true },
++  ],
++  latest: { date: '2026-11-07', totalHours: 6.5, met: false },
++  alert: true,
++}
++const json = (body: unknown, status = 200) =>
++  new Response(JSON.stringify(body), {
++    status,
++    headers: { 'Content-Type': 'application/json' },
++  })
++
++beforeEach(() => {
++  fetchMock.mockReset()
++  vi.stubGlobal('fetch', fetchMock)
++})
++afterEach(() => {
++  vi.unstubAllGlobals()
++  vi.restoreAllMocks()
++})
++
++describe('HU10 · Objetivo mínimo de sueño', () => {
++  it('sin objetivo ni registros invita a configurarlo e indica que aún no hay registros', async () => {
++    fetchMock.mockResolvedValueOnce(json(empty))
++    render(<SleepGoalForm />)
++    expect(await screen.findByText('Establece cuántas horas quieres dormir')).toBeVisible()
++    expect(screen.getByText('Aún no hay registros de sueño en los últimos 7 días.')).toBeVisible()
++    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
++  })
++
++  it('guarda 9 horas con PUT y muestra el objetivo', async () => {
++    const user = userEvent.setup()
++    fetchMock.mockResolvedValueOnce(json(empty))
++    fetchMock.mockResolvedValueOnce(json({ ...empty, minHours: 9, updatedAt: '2026-11-07T08:00:00.000Z' }))
++    render(<SleepGoalForm />)
++    await user.type(await screen.findByLabelText(/Horas mínimas de sueño/), '9')
++    await user.click(screen.getByRole('button', { name: 'Guardar objetivo' }))
++
++    expect(await screen.findByText('9 h como mínimo')).toBeVisible()
++    expect(screen.getByText('Objetivo de sueño guardado correctamente.')).toBeVisible()
++    expect(fetchMock).toHaveBeenLastCalledWith(
++      'http://localhost:3001/api/sleep-goal',
++      expect.objectContaining({ method: 'PUT', body: '{"minHours":9}' }),
++    )
++  })
++
++  it('acepta coma decimal', async () => {
++    const user = userEvent.setup()
++    fetchMock.mockResolvedValueOnce(json(empty))
++    fetchMock.mockResolvedValueOnce(json({ ...empty, minHours: 7.5, updatedAt: '2026-11-07T08:00:00.000Z' }))
++    render(<SleepGoalForm />)
++    await user.type(await screen.findByLabelText(/Horas mínimas de sueño/), '7,5')
++    await user.click(screen.getByRole('button', { name: 'Guardar objetivo' }))
++    expect(await screen.findByText('7,5 h como mínimo')).toBeVisible()
++    expect(fetchMock).toHaveBeenLastCalledWith(
++      'http://localhost:3001/api/sleep-goal',
++      expect.objectContaining({ body: '{"minHours":7.5}' }),
++    )
++  })
++
++  it.each(['', '-1', '0', '25', 'ocho'])('rechaza "%s" sin hacer PUT', async (value) => {
++    const user = userEvent.setup()
++    fetchMock.mockResolvedValueOnce(json(empty))
++    render(<SleepGoalForm />)
++    const field = await screen.findByLabelText(/Horas mínimas de sueño/)
++    if (value) await user.type(field, value)
++    await user.click(screen.getByRole('button', { name: 'Guardar objetivo' }))
++    expect(await screen.findByRole('alert')).toBeVisible()
++    expect(fetchMock).toHaveBeenCalledTimes(1)
++  })
++
++  it('avisa cuando el último día no alcanza el objetivo y muestra el cumplimiento diario', async () => {
++    fetchMock.mockResolvedValueOnce(json(withGoal))
++    render(<SleepGoalForm />)
++    const alert = await screen.findByRole('alert')
++    expect(alert).toHaveTextContent('No has alcanzado tu objetivo de sueño')
++    expect(alert).toHaveTextContent('El 7/11/2026 dormiste 6,5 h, 1,5 h menos que tu objetivo de 8 h.')
++    expect(screen.getByText('No cumplido')).toBeVisible()
++    expect(screen.getByText('Cumplido')).toBeVisible()
++    await waitFor(() => expect(screen.getByLabelText(/Horas mínimas de sueño/)).toHaveValue('8'))
++  })
++
++  it('comunica el error si la API no responde', async () => {
++    fetchMock.mockRejectedValueOnce(new Error('Servicio no disponible'))
++    render(<SleepGoalForm />)
++    expect(await screen.findByRole('alert')).toHaveTextContent('Servicio no disponible')
++  })
++})
++
++describe('HU10 · reglas del servicio', () => {
++  it('valida el rango (0, 24]', () => {
++    expect(validateSleepGoalHours('24')).toBeNull()
++    expect(validateSleepGoalHours('0,5')).toBeNull()
++    expect(validateSleepGoalHours('24,5')).not.toBeNull()
++    expect(validateSleepGoalHours('0')).not.toBeNull()
++  })
++
++  it('no genera aviso si no hay objetivo o se cumple', () => {
++    expect(sleepAlertMessage(empty)).toBeNull()
++    expect(sleepAlertMessage({ ...withGoal, alert: false })).toBeNull()
++  })
++})
+diff --git a/frontend/src/components/SleepGoalForm.tsx b/frontend/src/components/SleepGoalForm.tsx
+new file mode 100644
+index 0000000..25becfb
+--- /dev/null
++++ b/frontend/src/components/SleepGoalForm.tsx
+@@ -0,0 +1,173 @@
++// HU10 — Fijar un objetivo mínimo de horas de sueño y ver su cumplimiento diario.
++import { useCallback, useEffect, useState, type FormEvent } from 'react'
++import {
++  formatDay,
++  formatHours,
++  getSleepGoal,
++  saveSleepGoal,
++  sleepAlertMessage,
++  validateSleepGoalHours,
++} from '../services/sleepGoal'
++import type { SleepGoalSummary } from '../types/sleepGoal'
++import './SleepGoalForm.css'
++
++export default function SleepGoalForm() {
++  const [summary, setSummary] = useState<SleepGoalSummary | null>(null)
++  const [hours, setHours] = useState('')
++  const [loading, setLoading] = useState(true)
++  const [saving, setSaving] = useState(false)
++  const [error, setError] = useState<string | null>(null)
++  const [success, setSuccess] = useState(false)
++
++  const refresh = useCallback(async () => {
++    setLoading(true)
++    setError(null)
++    try {
++      const current = await getSleepGoal()
++      setSummary(current)
++      setHours(current.minHours === null ? '' : String(current.minHours).replace('.', ','))
++    } catch (reason) {
++      setError(
++        reason instanceof Error ? reason.message : 'No se ha podido cargar el objetivo de sueño.',
++      )
++    } finally {
++      setLoading(false)
++    }
++  }, [])
++
++  useEffect(() => {
++    void refresh()
++  }, [refresh])
++
++  async function submit(event: FormEvent<HTMLFormElement>) {
++    event.preventDefault()
++    if (saving) return
++    setSuccess(false)
++    const validationError = validateSleepGoalHours(hours)
++    if (validationError) {
++      setError(validationError)
++      return
++    }
++    setSaving(true)
++    setError(null)
++    try {
++      const next = await saveSleepGoal(hours)
++      setSummary(next)
++      setSuccess(true)
++    } catch (reason) {
++      setError(reason instanceof Error ? reason.message : 'No se pudo guardar el objetivo.')
++    } finally {
++      setSaving(false)
++    }
++  }
++
++  const alert = summary ? sleepAlertMessage(summary) : null
++
++  return (
++    <section className="form-panel sleep-goal-layout" aria-labelledby="sleep-goal-title">
++      <div className="form-heading">
++        <h2 id="sleep-goal-title">Objetivo mínimo de sueño</h2>
++        <span>Horas al día</span>
++      </div>
++
++      {alert && (
++        <div className="sleep-goal-alert" role="alert">
++          <strong>No has alcanzado tu objetivo de sueño</strong>
++          {alert}
++        </div>
++      )}
++
++      <div className="sleep-goal-summary" aria-live="polite">
++        {loading ? (
++          <p role="status">Cargando objetivo de sueño…</p>
++        ) : summary?.minHours === null || (!summary && !error) ? (
++          <div>
++            <p>Todavía no tienes un objetivo mínimo de sueño.</p>
++            <strong>Establece cuántas horas quieres dormir</strong>
++          </div>
++        ) : summary ? (
++          <div>
++            <p>Tu objetivo diario</p>
++            <strong>{formatHours(summary.minHours ?? 0)} como mínimo</strong>
++          </div>
++        ) : null}
++
++        {!loading && summary && (
++          summary.days.length === 0 ? (
++            <p className="sleep-goal-empty">
++              Aún no hay registros de sueño en los últimos 7 días.
++            </p>
++          ) : (
++            <ul className="sleep-goal-days" aria-label="Cumplimiento de los últimos 7 días">
++              {summary.days.map((day) => (
++                <li key={day.date}>
++                  <span>{formatDay(day.date)}</span>
++                  <span>{formatHours(day.totalHours)}</span>
++                  {day.met === null ? (
++                    <span>Sin objetivo</span>
++                  ) : day.met ? (
++                    <span className="met">Cumplido</span>
++                  ) : (
++                    <span className="missed">No cumplido</span>
++                  )}
++                </li>
++              ))}
++            </ul>
++          )
++        )}
++      </div>
++
++      <form onSubmit={submit} noValidate>
++        <div className="form-field">
++          <label htmlFor="sleep-goal-hours">
++            Horas mínimas de sueño al día{' '}
++            <span className="required-mark" aria-hidden="true">*</span>
++          </label>
++          <input
++            id="sleep-goal-hours"
++            name="sleepGoalHours"
++            type="text"
++            inputMode="decimal"
++            required
++            value={hours}
++            placeholder="Por ejemplo, 8"
++            onChange={(event) => {
++              setHours(event.target.value)
++              setError(null)
++              setSuccess(false)
++            }}
++            disabled={loading || saving}
++            aria-invalid={Boolean(error && validateSleepGoalHours(hours))}
++            aria-describedby="sleep-goal-hint"
++          />
++          <p id="sleep-goal-hint" className="field-hint">
++            Mayor que 0 y como máximo 24. Se suman todos los descansos del día, siestas incluidas.
++          </p>
++        </div>
++        {error && (
++          <p className="validation-notice sleep-goal-error" role="alert">
++            {error}
++          </p>
++        )}
++        {success && (
++          <p className="feedback feedback-success" role="status">
++            Objetivo de sueño guardado correctamente.
++          </p>
++        )}
++        <div className="form-actions">
++          <button className="save-button" type="submit" disabled={loading || saving}>
++            {saving ? 'Guardando…' : 'Guardar objetivo'}
++          </button>
++          <button
++            className="secondary-button"
++            type="button"
++            onClick={() => void refresh()}
++            disabled={loading || saving}
++          >
++            Actualizar
++          </button>
++        </div>
++      </form>
++    </section>
++  )
++}
+diff --git a/frontend/src/components/SleepGoalNotice.test.tsx b/frontend/src/components/SleepGoalNotice.test.tsx
+new file mode 100644
+index 0000000..59f9330
+--- /dev/null
++++ b/frontend/src/components/SleepGoalNotice.test.tsx
+@@ -0,0 +1,67 @@
++import { render, screen } from '@testing-library/react'
++import userEvent from '@testing-library/user-event'
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
++import SleepGoalNotice from './SleepGoalNotice'
++
++const fetchMock = vi.fn<typeof fetch>()
++const base = {
++  minHours: 8,
++  updatedAt: '2026-11-07T08:00:00.000Z',
++  fromDate: '2026-11-01',
++  toDate: '2026-11-07',
++  days: [],
++  latest: null,
++  alert: false,
++}
++const json = (body: unknown) =>
++  new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
++
++beforeEach(() => {
++  fetchMock.mockReset()
++  vi.stubGlobal('fetch', fetchMock)
++})
++afterEach(() => vi.unstubAllGlobals())
++
++describe('HU10 · avisos en la pantalla de sueño', () => {
++  it('CA3: sin objetivo, lo indica y permite ir a configurarlo', async () => {
++    const user = userEvent.setup()
++    const onConfigure = vi.fn()
++    fetchMock.mockResolvedValueOnce(json({ ...base, minHours: null, updatedAt: null }))
++    render(<SleepGoalNotice active revision={0} onConfigure={onConfigure} />)
++    expect(await screen.findByText('Aún no has establecido un objetivo mínimo de sueño.')).toBeVisible()
++    await user.click(screen.getByRole('button', { name: 'Configurar objetivo' }))
++    expect(onConfigure).toHaveBeenCalledTimes(1)
++  })
++
++  it('CA4: tras guardar un registro por debajo del objetivo, muestra la notificación', async () => {
++    fetchMock.mockResolvedValueOnce(json(base))
++    const { rerender } = render(<SleepGoalNotice active revision={0} onConfigure={() => {}} />)
++    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
++    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
++
++    const latest = { date: '2026-11-07', totalHours: 5, met: false }
++    fetchMock.mockResolvedValueOnce(json({ ...base, days: [latest], latest, alert: true }))
++    rerender(<SleepGoalNotice active revision={1} onConfigure={() => {}} />)
++    expect(await screen.findByRole('alert')).toHaveTextContent(
++      'El 7/11/2026 dormiste 5 h, 3 h menos que tu objetivo de 8 h.',
++    )
++  })
++
++  it('no muestra nada si se cumple el objetivo, si la API falla o si la pestaña no está activa', async () => {
++    const latest = { date: '2026-11-07', totalHours: 9, met: true }
++    fetchMock.mockResolvedValueOnce(json({ ...base, days: [latest], latest }))
++    const { container, rerender } = render(
++      <SleepGoalNotice active revision={0} onConfigure={() => {}} />,
++    )
++    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
++    expect(container).toBeEmptyDOMElement()
++
++    fetchMock.mockRejectedValueOnce(new Error('caída'))
++    rerender(<SleepGoalNotice active revision={1} onConfigure={() => {}} />)
++    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
++    expect(container).toBeEmptyDOMElement()
++
++    rerender(<SleepGoalNotice active={false} revision={2} onConfigure={() => {}} />)
++    expect(fetchMock).toHaveBeenCalledTimes(2)
++  })
++})
+diff --git a/frontend/src/components/SleepGoalNotice.tsx b/frontend/src/components/SleepGoalNotice.tsx
+new file mode 100644
+index 0000000..2f8c973
+--- /dev/null
++++ b/frontend/src/components/SleepGoalNotice.tsx
+@@ -0,0 +1,56 @@
++// HU10 en la pantalla de sueño:
++// - CA3: si no hay objetivo, lo indica y sugiere configurarlo.
++// - CA4: al guardar un registro que deja el día por debajo del objetivo, muestra una notificación.
++import { useEffect, useState } from 'react'
++import { getSleepGoal, sleepAlertMessage } from '../services/sleepGoal'
++import type { SleepGoalSummary } from '../types/sleepGoal'
++import './SleepGoalForm.css'
++
++type Props = {
++  active: boolean
++  /** Cambia cada vez que se guarda un registro de sueño. */
++  revision: number
++  onConfigure: () => void
++}
++
++export default function SleepGoalNotice({ active, revision, onConfigure }: Props) {
++  const [summary, setSummary] = useState<SleepGoalSummary | null>(null)
++
++  useEffect(() => {
++    if (!active) return
++    let cancelled = false
++    getSleepGoal()
++      .then((next) => {
++        if (!cancelled) setSummary(next)
++      })
++      .catch(() => {
++        // Un fallo del aviso nunca debe impedir registrar horas de sueño.
++        if (!cancelled) setSummary(null)
++      })
++    return () => {
++      cancelled = true
++    }
++  }, [active, revision])
++
++  if (!active || summary === null) return null
++
++  if (summary.minHours === null) {
++    return (
++      <div className="sleep-goal-hint" role="status">
++        <span>Aún no has establecido un objetivo mínimo de sueño.</span>
++        <button type="button" className="secondary-button" onClick={onConfigure}>
++          Configurar objetivo
++        </button>
++      </div>
++    )
++  }
++
++  const message = sleepAlertMessage(summary)
++  if (!message) return null
++  return (
++    <div className="sleep-goal-alert" role="alert">
++      <strong>No has alcanzado tu objetivo de sueño</strong>
++      {message}
++    </div>
++  )
++}
+diff --git a/frontend/src/pages/RegisterActivityPage.tsx b/frontend/src/pages/RegisterActivityPage.tsx
+index d52b65d..5451a06 100644
+--- a/frontend/src/pages/RegisterActivityPage.tsx
++++ b/frontend/src/pages/RegisterActivityPage.tsx
+@@ -7,8 +7,16 @@ import SleepDashboard from '../components/SleepDashboard'
+ import SleepForm from '../components/SleepForm'
+ import WaterForm from '../components/WaterForm'
+ import TrainingGoalForm from '../components/TrainingGoalForm'
++import SleepGoalForm from '../components/SleepGoalForm'
++import SleepGoalNotice from '../components/SleepGoalNotice'
+ 
+-type Habit = 'activity' | 'sleep' | 'hydration-goal' | 'water' | 'training-goal'
++type Habit =
++  | 'activity'
++  | 'sleep'
++  | 'hydration-goal'
++  | 'water'
++  | 'training-goal'
++  | 'sleep-goal'
+ 
+ export default function RegisterActivityPage() {
+   const [selectedHabit, setSelectedHabit] = useState<Habit>('activity')
+@@ -38,7 +46,9 @@ export default function RegisterActivityPage() {
+               ? '#sleep-form'
+               : selectedHabit === 'training-goal'
+                 ? '#training-goal-panel'
+-                : isWater
++                : selectedHabit === 'sleep-goal'
++                  ? '#sleep-goal-panel'
++                  : isWater
+                   ? '#water-form'
+                   : '#hydration-goal'
+         }
+@@ -104,6 +114,14 @@ export default function RegisterActivityPage() {
+         >
+           Objetivo de entrenamiento
+         </button>
++        <button
++          type="button"
++          aria-pressed={selectedHabit === 'sleep-goal'}
++          aria-controls="sleep-goal-panel"
++          onClick={() => setSelectedHabit('sleep-goal')}
++        >
++          Objetivo de sueño
++        </button>
+       </nav>
+ 
+       <main className="workspace">
+@@ -119,7 +137,9 @@ export default function RegisterActivityPage() {
+                 ? 'actividad física'
+                 : selectedHabit === 'training-goal'
+                   ? 'objetivo de entrenamiento'
+-                  : isSleep
++                  : selectedHabit === 'sleep-goal'
++                    ? 'objetivo de sueño'
++                    : isSleep
+                   ? 'horas de sueño'
+                   : isWater
+                     ? 'consumo de agua'
+@@ -133,6 +153,11 @@ export default function RegisterActivityPage() {
+                 <br className="desktop-break" /> Un lugar para registrar tu
+                 movimiento, actividad a actividad.
+               </>
++            ) : selectedHabit === 'sleep-goal' ? (
++              <>
++                Fija cuántas horas quieres dormir como mínimo cada día y te
++                avisaremos cuando no lo cumplas.
++              </>
+             ) : selectedHabit === 'training-goal' ? (
+               <>
+                 Elige cuántos días quieres entrenar cada semana y consulta los días
+@@ -165,6 +190,12 @@ export default function RegisterActivityPage() {
+                   <br />
+                   Elige la actividad que mejor describa la tuya.
+                 </>
++              ) : selectedHabit === 'sleep-goal' ? (
++                <>
++                  Se suman noches y siestas de cada día.
++                  <br />
++                  Revisamos los últimos 7 días.
++                </>
+               ) : selectedHabit === 'training-goal' ? (
+                 <>
+                   Cuenta los días distintos con actividad.
+@@ -217,8 +248,20 @@ export default function RegisterActivityPage() {
+         >
+           {selectedHabit === 'training-goal' && <TrainingGoalForm />}
+         </div>
++        <div
++          className="habit-panel"
++          id="sleep-goal-panel"
++          hidden={selectedHabit !== 'sleep-goal'}
++        >
++          {selectedHabit === 'sleep-goal' && <SleepGoalForm />}
++        </div>
+         <div className="habit-panel" id="sleep-panel" hidden={!isSleep}>
+           <SleepForm onSaved={refreshSleep} />
++          <SleepGoalNotice
++            active={isSleep}
++            revision={sleepRevision}
++            onConfigure={() => setSelectedHabit('sleep-goal')}
++          />
+         </div>
+         <div
+           className="habit-panel"
+diff --git a/frontend/src/pages/RegisterSleepPage.test.tsx b/frontend/src/pages/RegisterSleepPage.test.tsx
+index 8535dad..c7c32d1 100644
+--- a/frontend/src/pages/RegisterSleepPage.test.tsx
++++ b/frontend/src/pages/RegisterSleepPage.test.tsx
+@@ -19,6 +19,20 @@ const jsonResponse = (body: unknown, status = 201) =>
+     headers: { 'Content-Type': 'application/json' },
+   })
+ 
++// HU10: el aviso del objetivo de sueño consulta /api/sleep-goal. Se responde aparte
++// para que los recuentos de peticiones de HU2 sigan midiendo solo /api/sleep.
++const noSleepGoal = {
++  minHours: null,
++  updatedAt: null,
++  fromDate: '2026-10-06',
++  toDate: '2026-10-12',
++  days: [],
++  latest: null,
++  alert: false,
++}
++const isSleepGoalRequest = (input: RequestInfo | URL) =>
++  String(input instanceof Request ? input.url : input).includes('/api/sleep-goal')
++
+ beforeEach(() => {
+   vi.useFakeTimers({ toFake: ['Date'] })
+   vi.setSystemTime(new Date('2026-10-12T12:00:00.000Z'))
+@@ -27,9 +41,11 @@ beforeEach(() => {
+   getFetchMock.mockImplementation(async () => jsonResponse([], 200))
+   // Keep the original assertions specific to POST, independently of dashboard reads.
+   vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) =>
+-    init?.method === 'POST'
+-      ? fetchMock(input, init)
+-      : getFetchMock(input, init),
++    isSleepGoalRequest(input)
++      ? Promise.resolve(jsonResponse(noSleepGoal, 200))
++      : init?.method === 'POST'
++        ? fetchMock(input, init)
++        : getFetchMock(input, init),
+   )
+ })
+ afterEach(() => {
+diff --git a/frontend/src/pages/SleepDashboard.test.tsx b/frontend/src/pages/SleepDashboard.test.tsx
+index 465304b..580233e 100644
+--- a/frontend/src/pages/SleepDashboard.test.tsx
++++ b/frontend/src/pages/SleepDashboard.test.tsx
+@@ -34,6 +34,20 @@ const record = (
+ })
+ const currentRecord = record(1, '2026-10-11', 8)
+ 
++// HU10: el aviso del objetivo de sueño consulta /api/sleep-goal. Se responde aparte
++// para que los recuentos de peticiones de HU2 sigan midiendo solo /api/sleep.
++const noSleepGoal = {
++  minHours: null,
++  updatedAt: null,
++  fromDate: '2026-10-05',
++  toDate: '2026-10-11',
++  days: [],
++  latest: null,
++  alert: false,
++}
++const isSleepGoalRequest = (input: RequestInfo | URL) =>
++  String(input instanceof Request ? input.url : input).includes('/api/sleep-goal')
++
+ beforeEach(() => {
+   // Only freeze Date: user events and async request settling keep real timers.
+   vi.useFakeTimers({ toFake: ['Date'] })
+@@ -43,7 +57,11 @@ beforeEach(() => {
+   postMock.mockReset()
+   getMock.mockImplementation(async () => jsonResponse([]))
+   fetchMock.mockImplementation((input, init) =>
+-    init?.method === 'POST' ? postMock(input, init) : getMock(input, init),
++    isSleepGoalRequest(input)
++      ? Promise.resolve(jsonResponse(noSleepGoal))
++      : init?.method === 'POST'
++        ? postMock(input, init)
++        : getMock(input, init),
+   )
+   vi.stubGlobal('fetch', fetchMock)
+   vi.stubEnv('VITE_API_BASE_URL', '')
+diff --git a/frontend/src/services/sleepGoal.ts b/frontend/src/services/sleepGoal.ts
+new file mode 100644
+index 0000000..498e870
+--- /dev/null
++++ b/frontend/src/services/sleepGoal.ts
+@@ -0,0 +1,120 @@
++// HU10 — Objetivo mínimo de horas de sueño. Contrato en docs/hu10-api.md.
++import type { SleepDayCompliance, SleepGoalSummary } from '../types/sleepGoal'
++
++const getBaseUrl = () =>
++  (import.meta.env.VITE_API_BASE_URL?.trim() || 'http://localhost:3001').replace(
++    /\/+$/,
++    '',
++  )
++
++const DECIMAL = /^\d+(?:[.,]\d+)?$/
++
++/** Convierte lo escrito (admite coma decimal) en horas, o null si no es un número. */
++export function parseSleepGoalHours(raw: string): number | null {
++  const value = raw.trim()
++  if (!DECIMAL.test(value)) return null
++  const hours = Number(value.replace(',', '.'))
++  return Number.isFinite(hours) ? hours : null
++}
++
++export function validateSleepGoalHours(raw: string): string | null {
++  if (!raw.trim()) return 'Indica cuántas horas quieres dormir como mínimo.'
++  const hours = parseSleepGoalHours(raw)
++  if (hours === null) return 'Introduce un número de horas, por ejemplo 8 o 7,5.'
++  if (hours <= 0 || hours > 24) {
++    return 'El objetivo debe ser mayor que 0 y como máximo 24 horas.'
++  }
++  return null
++}
++
++const isDate = (value: unknown) =>
++  typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
++
++function isDay(value: unknown): value is SleepDayCompliance {
++  if (typeof value !== 'object' || value === null) return false
++  const day = value as Record<string, unknown>
++  return (
++    isDate(day.date) &&
++    typeof day.totalHours === 'number' &&
++    Number.isFinite(day.totalHours) &&
++    (day.met === null || typeof day.met === 'boolean')
++  )
++}
++
++function isSummary(value: unknown): value is SleepGoalSummary {
++  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
++  const data = value as Record<string, unknown>
++  return (
++    (data.minHours === null ||
++      (typeof data.minHours === 'number' && data.minHours > 0 && data.minHours <= 24)) &&
++    (data.updatedAt === null || typeof data.updatedAt === 'string') &&
++    isDate(data.fromDate) &&
++    isDate(data.toDate) &&
++    Array.isArray(data.days) &&
++    data.days.every(isDay) &&
++    (data.latest === null || isDay(data.latest)) &&
++    typeof data.alert === 'boolean'
++  )
++}
++
++async function readSummary(response: Response): Promise<SleepGoalSummary> {
++  let data: unknown
++  try {
++    data = await response.json()
++  } catch {
++    throw new Error('La API ha devuelto una respuesta que no se puede leer.')
++  }
++  if (!response.ok) {
++    const message =
++      typeof data === 'object' &&
++      data !== null &&
++      'error' in data &&
++      typeof data.error === 'object' &&
++      data.error !== null &&
++      'message' in data.error &&
++      typeof data.error.message === 'string'
++        ? data.error.message
++        : 'No se ha podido consultar el objetivo de sueño.'
++    throw new Error(message)
++  }
++  if (!isSummary(data)) {
++    throw new Error('La API ha devuelto datos de sueño inesperados.')
++  }
++  return data
++}
++
++export async function getSleepGoal(): Promise<SleepGoalSummary> {
++  const response = await fetch(`${getBaseUrl()}/api/sleep-goal`)
++  return readSummary(response)
++}
++
++export async function saveSleepGoal(rawHours: string): Promise<SleepGoalSummary> {
++  const error = validateSleepGoalHours(rawHours)
++  if (error) throw new Error(error)
++  const response = await fetch(`${getBaseUrl()}/api/sleep-goal`, {
++    method: 'PUT',
++    headers: { 'Content-Type': 'application/json' },
++    body: JSON.stringify({ minHours: parseSleepGoalHours(rawHours) }),
++  })
++  return readSummary(response)
++}
++
++/** 7.5 → "7,5 h"; 8 → "8 h". */
++export function formatHours(hours: number): string {
++  return `${String(Math.round(hours * 100) / 100).replace('.', ',')} h`
++}
++
++/** 2026-11-05 → "5/11/2026", sin conversiones de zona horaria. */
++export function formatDay(isoDate: string): string {
++  const [year, month, day] = isoDate.split('-').map(Number)
++  return `${day}/${month}/${year}`
++}
++
++/** Texto del aviso cuando el último día registrado no alcanza el objetivo. */
++export function sleepAlertMessage(summary: SleepGoalSummary): string | null {
++  if (!summary.alert || summary.latest === null || summary.minHours === null) return null
++  const missing = summary.minHours - summary.latest.totalHours
++  return `El ${formatDay(summary.latest.date)} dormiste ${formatHours(
++    summary.latest.totalHours,
++  )}, ${formatHours(missing)} menos que tu objetivo de ${formatHours(summary.minHours)}.`
++}
+diff --git a/frontend/src/types/sleepGoal.ts b/frontend/src/types/sleepGoal.ts
+new file mode 100644
+index 0000000..f5a0660
+--- /dev/null
++++ b/frontend/src/types/sleepGoal.ts
+@@ -0,0 +1,16 @@
++export type SleepDayCompliance = {
++  date: string
++  totalHours: number
++  /** null cuando todavía no hay objetivo configurado. */
++  met: boolean | null
++}
++
++export type SleepGoalSummary = {
++  minHours: number | null
++  updatedAt: string | null
++  fromDate: string
++  toDate: string
++  days: SleepDayCompliance[]
++  latest: SleepDayCompliance | null
++  alert: boolean
++}

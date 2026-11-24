@@ -62,6 +62,7 @@ function toApi(row: ActivityRow) {
     activityType: row.activity_type,
     activityDate: row.activity_date,
     notes: row.notes,
+    intensity: row.intensity ?? null,
     createdAt: row.created_at,
   };
 }
