@@ -16,6 +16,7 @@ La aplicación permite registrar actividades físicas, sueño y agua, consultar 
 | HU9 | Fijar o modificar la meta diaria de hidratación |
 | HU10 | Configurar un objetivo mínimo de sueño y mostrar avisos de cumplimiento |
 | HU11 | Registrar una valoración de calidad del sueño de 1 a 5 con comentario opcional |
+| HU12 | Recibir felicitaciones por metas semanales cumplidas |
 
 Las funcionalidades terminadas del **Sprint 2** son HU3, HU6, HU8, HU9, HU10 y HU11. HU1 y HU2 ya estaban completas al finalizar el Sprint 1.
 
@@ -117,3 +118,21 @@ También existe un workflow de GitHub Actions que comprueba TypeScript, pruebas 
 ## Limitaciones e integración futura
 
 La versión actual está diseñada para ejecutarse de forma aislada, con un usuario local de demostración. La integración de cuentas de usuario y la lectura de archivos de datos simulados procedentes de otros módulos no forman parte de las rutas funcionales actuales y no deben presentarse como implementadas.
+
+## Felicitaciones semanales
+
+La aplicación evalúa las metas de actividad, sueño e hidratación de lunes a domingo. El icono situado en el banner permite consultar los logros manualmente y cada consulta vuelve a leer los datos guardados.
+
+Una meta de sueño o agua se considera cumplida cuando el objetivo diario se alcanza los siete días de la semana. El objetivo de actividad usa el progreso semanal configurado.
+
+La programación automática se encuentra en `frontend/src/components/WeeklyCongratulations.tsx`:
+
+```typescript
+export const WEEKLY_CONGRATULATION_SCHEDULE = {
+  dayOfWeek: 1,
+  hour: 12,
+  minute: 0,
+}
+```
+
+`dayOfWeek: 1` significa lunes. Puede modificarse manualmente `dayOfWeek`, `hour` y `minute`. El popup automático solo aparece si existe al menos un logro nuevo. Se evita repetir la felicitación de una meta dentro de la misma semana y el mensaje permanece visible hasta que el usuario lo cierre.
