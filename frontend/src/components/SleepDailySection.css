@@ -130,14 +130,14 @@
   border-color: #ad734a;
 }
 .sleep-type-other {
-  background: #e4e8dc;
-  color: #46513d;
-  border-color: #68745d;
+  background: #e2ebee;
+  color: #315362;
+  border-color: #316578;
 }
 .sleep-type-unclassified {
   background: #e8e5df;
   color: #56534c;
-  border-color: #8f8b82;
+  border-color: #716e66;
 }
 .sleep-day-record-name > small {
   display: block;

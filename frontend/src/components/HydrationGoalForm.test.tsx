@@ -23,6 +23,34 @@ afterEach(() => {
 })
 
 describe('configuración de la meta diaria de agua', () => {
+  it('distingue un fallo de carga de una meta vacía y recupera la meta guardada', async () => {
+    const user = userEvent.setup()
+    fetchMock
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(
+        response({ litersPerDay: 1.5, updatedAt: '2026-11-03T12:30:00.000Z' }),
+      )
+    render(<HydrationGoalForm />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No se ha podido cargar',
+    )
+    expect(
+      screen.queryByText('Todavía no tienes un objetivo definido.'),
+    ).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Guardar objetivo' }),
+    ).toBeNull()
+    await user.click(
+      screen.getByRole('button', { name: 'Reintentar consulta de la meta' }),
+    )
+    expect(await screen.findByLabelText(/Litros de agua al día/)).toHaveValue(
+      1.5,
+    )
+    expect(
+      screen.getByText('Tu objetivo actual es 1,5 litros al día.'),
+    ).toBeVisible()
+  })
+
   it('indica que no hay meta y permite guardar una válida', async () => {
     const user = userEvent.setup()
     fetchMock

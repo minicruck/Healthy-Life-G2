@@ -136,7 +136,9 @@ export default function SleepQualityForm() {
           <p role="status">Cargando valoraciones de sueño…</p>
         ) : records.length === 0 ? (
           <div>
-            <p>Todavía no tienes valoraciones de calidad de sueño registradas.</p>
+            <p>
+              Todavía no tienes valoraciones de calidad de sueño registradas.
+            </p>
             <strong>Valora tu sensación de descanso cada mañana</strong>
           </div>
         ) : (
@@ -221,24 +223,27 @@ export default function SleepQualityForm() {
             {([1, 2, 3, 4, 5] as const).map((val) => {
               const isSelected = rating === val
               return (
-                <button
+                <label
                   key={val}
-                  type="button"
-                  role="radio"
-                  aria-checked={isSelected}
-                  aria-label={`${val} - ${RATING_LABELS[val]}`}
                   className={`rating-option-button ${isSelected ? 'selected' : ''}`}
-                  onClick={() => {
-                    setRating(val)
-                    setError(null)
-                    setDuplicateExisting(null)
-                    setSuccessMessage(null)
-                  }}
-                  disabled={saving}
                 >
+                  <input
+                    type="radio"
+                    name="sleepQualityRating"
+                    value={val}
+                    aria-label={`${val} - ${RATING_LABELS[val]}`}
+                    checked={isSelected}
+                    disabled={saving}
+                    onChange={() => {
+                      setRating(val)
+                      setError(null)
+                      setDuplicateExisting(null)
+                      setSuccessMessage(null)
+                    }}
+                  />
                   <span className="rating-number">{val}</span>
                   <span className="rating-desc">{RATING_LABELS[val]}</span>
-                </button>
+                </label>
               )
             })}
           </div>
@@ -292,8 +297,8 @@ export default function SleepQualityForm() {
                 {duplicateExisting.rating} / 5 (
                 {RATING_LABELS[duplicateExisting.rating]})
               </strong>
-              {duplicateExisting.notes ? ` («${duplicateExisting.notes}»)` : ''}.
-              ¿Deseas sustituirla sin duplicar?
+              {duplicateExisting.notes ? ` («${duplicateExisting.notes}»)` : ''}
+              . ¿Deseas sustituirla sin duplicar?
             </p>
             <div className="conflict-actions">
               <button

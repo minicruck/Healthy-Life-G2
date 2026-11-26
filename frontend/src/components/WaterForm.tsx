@@ -1,4 +1,5 @@
 import FieldError from './FieldError'
+import HistoryList from './HistoryList'
 import { useWaterForm } from '../hooks/useWaterForm'
 import { useState } from 'react'
 import { useWaterHistory } from '../hooks/useWaterHistory'
@@ -47,9 +48,18 @@ export default function WaterForm({ active }: WaterFormProps) {
             </p>
           )}
           {summary.status === 'error' && (
-            <p className="water-summary-error" role="alert">
-              {summary.message}
-            </p>
+            <>
+              <p className="water-summary-error" role="alert">
+                {summary.message}
+              </p>
+              <button
+                type="button"
+                className="sleep-text-button"
+                onClick={refresh}
+              >
+                Reintentar total diario
+              </button>
+            </>
           )}
         </div>
         <form id="water-form" ref={form} onSubmit={submit} noValidate>
@@ -120,11 +130,6 @@ export default function WaterForm({ active }: WaterFormProps) {
           </div>
 
           <div className="form-actions">
-            <p>
-              Tu hidratación,
-              <br />
-              <strong>un registro a la vez.</strong>
-            </p>
             <button
               className="save-button"
               type="submit"
@@ -154,10 +159,12 @@ export default function WaterForm({ active }: WaterFormProps) {
       >
         <div className="form-heading">
           <h2 id="water-history-heading">Historial de hidratación</h2>
-          <span>
-            {history.entries?.length ?? 0}{' '}
-            {(history.entries?.length ?? 0) === 1 ? 'registro' : 'registros'}
-          </span>
+          {history.entries && (
+            <span>
+              {history.entries.length}{' '}
+              {history.entries.length === 1 ? 'registro' : 'registros'}
+            </span>
+          )}
         </div>
         {history.status === 'loading' && history.entries === null && (
           <p role="status">Cargando el historial…</p>
@@ -180,8 +187,12 @@ export default function WaterForm({ active }: WaterFormProps) {
           </p>
         )}
         {history.entries && history.entries.length > 0 && (
-          <ul className="water-history-list">
-            {history.entries.map((entry) => (
+          <HistoryList
+            records={history.entries}
+            label="Consumos registrados"
+            className="water-history-list"
+          >
+            {(entry) => (
               <li key={entry.id}>
                 <time dateTime={entry.consumedDate}>
                   {new Date(
@@ -195,8 +206,8 @@ export default function WaterForm({ active }: WaterFormProps) {
                 </time>
                 <strong>{entry.amountMl.toLocaleString('es-ES')} ml</strong>
               </li>
-            ))}
-          </ul>
+            )}
+          </HistoryList>
         )}
       </section>
     </div>

@@ -104,12 +104,12 @@ export default function SleepDashboard({
         <>
           <div className="sleep-dashboard-heading">
             <div>
-              <p className="sleep-dashboard-eyebrow">SUEÑO · TU SEGUIMIENTO</p>
               <h2 id="sleep-dashboard-title" tabIndex={-1}>
                 Tu descanso <em>en cifras</em>
               </h2>
               <p className="sleep-dashboard-intro">
-                Una mirada a las horas que has registrado.
+                Compara la duración de cada descanso y el total que duermes al
+                día.
               </p>
             </div>
             <div className="sleep-period-control">
@@ -227,7 +227,7 @@ export default function SleepDashboard({
                 <Suspense
                   fallback={<p role="status">Preparando la gráfica…</p>}
                 >
-                  <SleepEvolutionChart records={selected} />
+                  <SleepEvolutionChart key={period} records={selected} />
                 </Suspense>
               </SleepChartBoundary>
               <SleepRecordsTable
@@ -235,13 +235,8 @@ export default function SleepDashboard({
                 today={today}
                 onEdit={edit}
               />
-              <p className="sleep-calculation-note">
-                La media se calcula por registro. Los días sin datos no cuentan
-                como cero y los registros de una misma fecha se mantienen
-                separados. La media diaria divide el total entre los días con
-                registros, sin incluir los días sin información.
-              </p>
               <SleepDailySection
+                key={period}
                 records={selected}
                 today={today}
                 onEdit={edit}

@@ -10,13 +10,6 @@
   justify-content: space-between;
   gap: 24px;
 }
-.sleep-dashboard-eyebrow {
-  margin: 0 0 13px;
-  color: var(--red);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.6px;
-}
 .sleep-dashboard h2 {
   margin: 0;
   font-family: 'Instrument Serif', Georgia, serif;
@@ -52,11 +45,11 @@
   background: #eeece4;
 }
 .sleep-period-options button {
-  min-height: 40px;
+  min-height: 44px;
   border: 1px solid transparent;
   background: transparent;
   padding: 9px 12px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--ink);
   transition:
@@ -81,7 +74,7 @@
   justify-content: space-between;
   margin: 24px 0 15px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.6;
 }
 .sleep-period-note p {
@@ -93,21 +86,20 @@
 }
 .sleep-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin: 0 0 24px;
 }
 .sleep-stat {
   min-width: 0;
-  padding: 22px 18px 19px;
+  padding: 16px clamp(10px, 1.2vw, 20px);
   border: 1px solid var(--line);
   border-bottom: 3px solid #b8baad;
   background: #f0eee7;
 }
 .sleep-stat dt {
-  min-height: 32px;
   color: #53584d;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.5;
 }
@@ -116,7 +108,7 @@
 }
 .sleep-stat-value {
   display: block;
-  font-size: clamp(27px, 3vw, 42px);
+  font-size: clamp(25px, 2.6vw, 38px);
   font-weight: 500;
   letter-spacing: -1.4px;
   font-variant-numeric: tabular-nums;
@@ -131,13 +123,12 @@
 }
 .sleep-stat-detail {
   display: block;
-  margin-top: 19px;
-  font-size: 10px;
+  margin-top: 8px;
+  font-size: 12px;
   color: #53584d;
   line-height: 1.6;
 }
 .sleep-stat-primary {
-  grid-column: span 2;
   color: #fffefa;
   background: var(--red-dark);
   border-color: var(--red-dark);
@@ -150,17 +141,9 @@
 }
 .sleep-stat-primary .sleep-stat-value {
   font-family: 'Instrument Serif', Georgia, serif;
-  font-size: clamp(42px, 4vw, 56px);
+  font-size: clamp(32px, 3vw, 44px);
   font-weight: 400;
-  line-height: 0.86;
-  padding-bottom: 4px;
-}
-.sleep-calculation-note {
-  font-size: 11px;
-  line-height: 1.7;
-  color: var(--muted);
-  max-width: 750px;
-  margin: 16px 0 0;
+  line-height: 1;
 }
 .sleep-chart-error {
   padding: 18px;
@@ -271,22 +254,7 @@
     flex-direction: column;
   }
   .sleep-stats {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  .sleep-stat-primary {
-    grid-column: span 2;
-  }
-  .sleep-stat-primary dt {
-    min-height: auto;
-  }
-  .sleep-stat-primary dd {
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 8px 14px;
-  }
-  .sleep-stat-primary .sleep-stat-detail {
-    margin: 0 0 0 auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 @media (max-width: 600px) {
@@ -302,7 +270,7 @@
   .sleep-period-options button {
     flex: 1;
     padding: 9px 7px;
-    font-size: 10px;
+    font-size: 12px;
   }
   .sleep-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -310,16 +278,6 @@
   }
   .sleep-stat {
     padding: 18px 14px 16px;
-  }
-  .sleep-stat-primary .sleep-stat-detail {
-    flex-basis: 100%;
-    margin-top: 5px;
-  }
-  .sleep-stat dt {
-    min-height: auto;
-  }
-  .sleep-stat-detail {
-    margin-top: 12px;
   }
   .sleep-dashboard-message {
     padding: 23px 20px;
@@ -333,13 +291,12 @@
 }
 
 .sleep-stat-daily {
-  grid-column: span 2;
   background: #e9e9df;
   border-bottom-color: #7b8069;
 }
 .sleep-stat-daily .sleep-stat-value {
   font-family: 'Instrument Serif', Georgia, serif;
-  font-size: clamp(42px, 4vw, 56px);
+  font-size: clamp(32px, 3vw, 44px);
   font-weight: 400;
 }
 .sleep-edit-confirmation:not(:empty) {
@@ -352,4 +309,46 @@
 }
 .sleep-edit-confirmation:empty {
   margin: 0;
+}
+
+.sleep-chart-card {
+  min-width: 0;
+  padding: clamp(14px, 2vw, 28px);
+  border: 1px solid var(--line);
+  background: #fffefa;
+}
+.sleep-chart-window {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 12px 0;
+}
+.sleep-chart-window span {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.sleep-chart-window button {
+  min-height: 44px;
+  padding: 8px 12px;
+  background: #fffefa;
+  border: 1px solid var(--line);
+  color: var(--red-dark);
+  font-size: 13px;
+  font-weight: 600;
+}
+.sleep-chart-window button:hover:enabled {
+  border-color: var(--red-dark);
+}
+.sleep-chart-window button:disabled {
+  cursor: default;
+  color: var(--muted);
+  background: var(--paper);
+}
+@media (max-width: 480px) {
+  .sleep-chart-window span {
+    flex-basis: 100%;
+  }
 }

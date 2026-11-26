@@ -186,7 +186,7 @@ La captura de éxito procede exclusivamente de una prueba con respuesta HTTP int
 
 ## Integración pendiente
 
-Con el backend de Álvaro disponible, comprobar conjuntamente el origen CORS, el `POST` y su respuesta `201`, errores reales y la persistencia en SQLite. Los endpoints auxiliares `GET /api/health` y `GET /api/activities` pueden ayudar a esa comprobación; el frontend no los utiliza ni añade un historial.
+Con el backend de Álvaro disponible, comprobar conjuntamente el origen CORS, el `POST` y su respuesta `201`, errores reales y la persistencia en SQLite. El historial de actividad consulta `GET /api/activities` al abrir **Ver historial**.
 
 El backend mantiene la asociación al usuario de prueba `DEMO_USER_ID` mientras no exista la integración con E1. Este frontend no implementa autenticación, estadísticas, objetivos, duración ni intensidad. Tampoco contiene servidor, consultas SQL ni configuración Docker.
 
@@ -205,8 +205,6 @@ La misma aplicación permite alternar entre actividad física, sueño y agua sin
 El contrato completo está en [`docs/hu2-api.md`](../docs/hu2-api.md). `POST /api/sleep` registra y `GET /api/sleep` consulta los datos del mismo usuario configurado en el backend. No se envía `userId`.
 
 ## HU3 — Registrar consumo diario de agua (SCRUM-3)
-
-
 
 El contrato completo está en [`docs/hu3-api.md`](../docs/hu3-api.md). El formulario utiliza `POST /api/water` para añadir un consumo; la sección de historial consulta `GET /api/water` y muestra cada registro en una lista sencilla por fecha y cantidad. El total diario se consulta en `GET /api/water/today`.
 
@@ -245,6 +243,8 @@ La gráfica original conserva un punto por registro, ordenado por fecha e identi
 Los grupos diarios muestran fecha, total, cantidad y detalle. El más reciente se abre inicialmente. Si un día suma más de 24 horas, se indica para revisión, sin borrar datos ni añadir una restricción diaria nueva.
 
 ### Períodos, consulta y actualización
+
+Las gráficas con más de 14 registros o fechas se consultan por tramos, empezando por los datos más recientes. Las tarjetas conservan los totales del período y la tabla permite consultar todos los registros.
 
 Los mismos filtros controlan las seis métricas, ambas gráficas, la tabla y el desglose diario:
 

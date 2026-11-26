@@ -241,6 +241,68 @@ test('expone los puntos exactos por ratón, teclado y tabla accesible', async ({
   await assertAccessible(page)
 })
 
+test('permite recorrer un historial largo manteniendo las escalas, las cifras y las fechas sin datos', async ({
+  page,
+}) => {
+  const records = Array.from({ length: 31 }, (_, index) =>
+    record(
+      index + 1,
+      index === 0 ? '2025-12-31' : `2026-09-${String(index).padStart(2, '0')}`,
+      index === 0 ? 24 : 7.25,
+    ),
+  )
+  const requests = await mockHistory(page, records)
+  await enterSleep(page)
+  await page
+    .getByRole('button', { name: 'Todo el historial', exact: true })
+    .click()
+  await assertPoints(page, records.slice(-14))
+  const ticks = page
+    .getByTestId('sleep-evolution-chart')
+    .locator('svg text')
+    .filter({ hasText: / h$/ })
+  await expect(ticks.first()).toBeVisible()
+  const originalScale = await ticks.allTextContents()
+  const recordPager = page.getByRole('group', { name: 'Tramos de registros' })
+  await recordPager.getByRole('button', { name: 'Más antiguos' }).click()
+  await assertPoints(page, records.slice(3, 17))
+  await recordPager.getByRole('button', { name: 'Más antiguos' }).click()
+  await assertPoints(page, records.slice(0, 3))
+  expect(await ticks.allTextContents()).toEqual(originalScale)
+  await expect(
+    recordPager.getByRole('button', { name: 'Más antiguos' }),
+  ).toBeDisabled()
+  await recordPager.getByRole('button', { name: 'Más recientes' }).click()
+  await assertPoints(page, records.slice(3, 17))
+
+  const dayPager = page.getByRole('group', { name: 'Tramos de días' })
+  await expect(page.locator('[data-sleep-day]')).toHaveCount(14)
+  await dayPager.getByRole('button', { name: 'Más antiguos' }).click()
+  await dayPager.getByRole('button', { name: 'Más antiguos' }).click()
+  await expect(page.locator('[data-sleep-day]')).toHaveCount(3)
+  await expect(page.getByTestId('sleep-day-total-2025-12-31')).toHaveText(
+    '24 h',
+  )
+  await expect(page.getByTestId('sleep-stat-days')).toHaveText('31')
+  await expect(page.getByTestId('sleep-stat-total')).toHaveText('241,5')
+  await page
+    .locator('summary')
+    .filter({ hasText: 'Ver todos los registros' })
+    .click()
+  await expect(
+    page
+      .getByRole('table', { name: 'Datos de la evolución del sueño' })
+      .locator('tbody tr'),
+  ).toHaveCount(31)
+  await page
+    .getByRole('button', { name: 'Últimos 7 días', exact: true })
+    .click()
+  await expect(
+    page.getByRole('heading', { name: 'No hay registros en este período' }),
+  ).toBeVisible()
+  expect(requests).toEqual({ get: 1, post: 0 })
+})
+
 test('se adapta a 320, 375, 768, 1024 y 1440 px sin ocultar datos ni desbordar', async ({
   page,
 }, testInfo) => {

@@ -19,6 +19,68 @@ type Habit =
   | 'sleep-goal'
   | 'sleep-quality'
 
+const screens = {
+  activity: {
+    label: 'Actividad física',
+    action: 'Registrar',
+    subject: 'actividad física',
+    target: 'activity-form',
+    intro:
+      'Anota el tipo de actividad, la fecha y los detalles que quieras recordar.',
+  },
+  sleep: {
+    label: 'Horas de sueño',
+    action: 'Registrar',
+    subject: 'horas de sueño',
+    target: 'sleep-form',
+    intro:
+      'Anota tus noches y siestas. Puedes registrar varios descansos en un mismo día.',
+  },
+  water: {
+    label: 'Agua',
+    action: 'Registrar',
+    subject: 'consumo de agua',
+    target: 'water-form',
+    intro: 'Añade un consumo en mililitros y consulta cuánto llevas hoy.',
+  },
+  'training-goal': {
+    label: 'Objetivo de entrenamiento',
+    action: 'Mi objetivo de',
+    subject: 'entrenamiento',
+    target: 'training-goal-panel',
+    intro:
+      'Elige cuántos días quieres entrenar y consulta tu progreso de lunes a domingo. Cada fecha con actividad cuenta una vez.',
+  },
+  'sleep-goal': {
+    label: 'Objetivo de sueño',
+    action: 'Mi objetivo de',
+    subject: 'sueño',
+    target: 'sleep-goal-panel',
+    intro:
+      'Define tu mínimo diario de horas y revisa tu última semana. Se suman los descansos registrados en cada fecha.',
+  },
+  'sleep-quality': {
+    label: 'Calidad del sueño',
+    action: 'Registrar',
+    subject: 'calidad del sueño',
+    target: 'sleep-quality-panel',
+    intro:
+      'Valora del 1 al 5 cómo has descansado y añade tus impresiones sobre esa noche.',
+  },
+} satisfies Record<
+  Habit,
+  {
+    label: string
+    action: string
+    subject: string
+    target: string
+    intro: string
+  }
+>
+
+const habits: Habit[] = ['activity', 'sleep', 'water']
+const followUp: Habit[] = ['training-goal', 'sleep-goal', 'sleep-quality']
+
 export default function RegisterActivityPage() {
   const [selectedHabit, setSelectedHabit] = useState<Habit>('activity')
   const isActivity = selectedHabit === 'activity'
@@ -28,7 +90,9 @@ export default function RegisterActivityPage() {
   const [activityRevision, setActivityRevision] = useState(0)
   const [showActivityHistory, setShowActivityHistory] = useState(false)
   // HU10: fecha del último registro de sueño guardado, para avisar sobre ese día.
-  const [lastSleepDate, setLastSleepDate] = useState<string | undefined>(undefined)
+  const [lastSleepDate, setLastSleepDate] = useState<string | undefined>(
+    undefined,
+  )
   const refreshSleep = useCallback((record?: { sleepDate: string }) => {
     if (record) setLastSleepDate(record.sleepDate)
     setSleepRevision((revision) => revision + 1)
@@ -37,25 +101,28 @@ export default function RegisterActivityPage() {
     setActivityRevision((revision) => revision + 1)
   }, [])
 
+  const historyOpen = isActivity && showActivityHistory
+  const screen = screens[selectedHabit]
+  const target = historyOpen ? 'activity-history-panel' : screen.target
+
+  function sectionButton(habit: Habit) {
+    return (
+      <button
+        key={habit}
+        type="button"
+        aria-pressed={selectedHabit === habit}
+        aria-controls={`${habit}-panel`}
+        onClick={() => setSelectedHabit(habit)}
+      >
+        {screens[habit].label}
+      </button>
+    )
+  }
+
   return (
     <div className="app-shell">
-      <a
-        className="skip-link"
-        href={
-          isActivity
-            ? '#activity-form'
-            : isSleep
-              ? '#sleep-form'
-              : selectedHabit === 'training-goal'
-                ? '#training-goal-panel'
-                : selectedHabit === 'sleep-goal'
-                  ? '#sleep-goal-panel'
-                  : selectedHabit === 'sleep-quality'
-                    ? '#sleep-quality-panel'
-                    : '#water-form'
-        }
-      >
-        Ir al formulario
+      <a className="skip-link" href={`#${target}`}>
+        {historyOpen ? 'Ir al historial' : 'Ir al formulario'}
       </a>
       <header className="site-header">
         <div className="brand" aria-label="Healthy Life">
@@ -73,172 +140,65 @@ export default function RegisterActivityPage() {
         </div>
       </header>
 
-      <nav className="habit-selector" aria-label="Tipo de registro">
-        <button
-          type="button"
-          aria-pressed={isActivity}
-          aria-controls="activity-panel"
-          onClick={() => setSelectedHabit('activity')}
-        >
-          Actividad física
-        </button>
-        <button
-          type="button"
-          aria-pressed={isSleep}
-          aria-controls="sleep-panel"
-          onClick={() => setSelectedHabit('sleep')}
-        >
-          Horas de sueño
-        </button>
-        <button
-          type="button"
-          aria-pressed={isWater}
-          aria-controls="water-panel"
-          onClick={() => setSelectedHabit('water')}
-        >
-          Agua
-        </button>
-        <button
-          type="button"
-          aria-pressed={selectedHabit === 'training-goal'}
-          aria-controls="training-goal-panel"
-          onClick={() => setSelectedHabit('training-goal')}
-        >
-          Objetivo de entrenamiento
-        </button>
-        <button
-          type="button"
-          aria-pressed={selectedHabit === 'sleep-goal'}
-          aria-controls="sleep-goal-panel"
-          onClick={() => setSelectedHabit('sleep-goal')}
-        >
-          Objetivo de sueño
-        </button>
-        <button
-          type="button"
-          aria-pressed={selectedHabit === 'sleep-quality'}
-          aria-controls="sleep-quality-panel"
-          onClick={() => setSelectedHabit('sleep-quality')}
-        >
-          Calidad del sueño
-        </button>
+      <nav className="habit-selector" aria-label="Hábitos y seguimiento">
+        <div role="group" aria-label="Registro de hábitos">
+          {habits.map(sectionButton)}
+        </div>
+        <div role="group" aria-label="Objetivos y calidad del sueño">
+          {followUp.map(sectionButton)}
+        </div>
       </nav>
 
-      <main className="workspace">
+      <main className={`workspace${isWater ? ' workspace-water' : ''}`}>
         <section className="introduction" aria-labelledby="page-title">
           <p className="eyebrow">
             <span className="section-marker">E2</span>{' '}
             {isWater ? 'HIDRATACIÓN' : 'SEGUIMIENTO DE HÁBITOS'}
           </p>
           <h1 id="page-title">
-            Registrar <br />
-            <em>
-              {isActivity
-                ? 'actividad física'
-                : selectedHabit === 'training-goal'
-                  ? 'objetivo de entrenamiento'
-                  : selectedHabit === 'sleep-goal'
-                    ? 'objetivo de sueño'
-                    : selectedHabit === 'sleep-quality'
-                      ? 'calidad del sueño'
-                      : isSleep
-                    ? 'horas de sueño'
-                    : 'consumo de agua'}
-            </em>
+            {historyOpen ? 'Consultar' : screen.action}{' '}
+            <em>{screen.subject}</em>
           </h1>
           <p className="intro-copy">
-            {isActivity ? (
-              <>
-                Anota qué has hecho y cuándo.
-                <br className="desktop-break" /> Un lugar para registrar tu
-                movimiento, actividad a actividad.
-              </>
-            ) : selectedHabit === 'sleep-goal' ? (
-              <>
-                Fija cuántas horas quieres dormir como mínimo cada día y te
-                avisaremos cuando no lo cumplas.
-              </>
-            ) : selectedHabit === 'sleep-quality' ? (
-              <>
-                Registra cómo has descansado cada noche valorando tu calidad de
-                sueño del 1 al 5 y anotando tus sensaciones.
-              </>
-            ) : selectedHabit === 'training-goal' ? (
-              <>
-                Elige cuántos días quieres entrenar cada semana y consulta los días
-                que te quedan para alcanzar tu meta.
-              </>
-            ) : isSleep ? (
-              <>
-                Anota cuándo y cuánto has dormido, de noche o en una siesta.
-                Puedes registrar varios descansos en un mismo día.
-              </>
-            ) : isWater ? (
-              <>
-                Define tu objetivo diario y registra cada consumo para seguir tu
-                hidratación en una sola vista.
-              </>
-            ) : null}
+            {historyOpen
+              ? 'Revisa tus actividades por fecha, empezando por la más reciente.'
+              : screen.intro}
           </p>
+          {isActivity && (
+            <button
+              className="section-shortcut"
+              type="button"
+              aria-expanded={historyOpen}
+              aria-controls="activity-history-panel"
+              onClick={() => setShowActivityHistory(!showActivityHistory)}
+            >
+              {historyOpen ? 'Volver al registro' : 'Ver historial'}{' '}
+              <span aria-hidden="true">→</span>
+            </button>
+          )}
+          {isSleep && (
+            <a className="section-shortcut" href="#sleep-dashboard-title">
+              Ver estadísticas e historial <span aria-hidden="true">↓</span>
+            </a>
+          )}
+          {isWater && (
+            <a className="section-shortcut" href="#hydration-goal">
+              Ajustar mi meta diaria <span aria-hidden="true">↓</span>
+            </a>
+          )}
           {isActivity && <MovementIllustration />}
-          <div className="intro-note">
-            <span className="note-line" aria-hidden="true" />
-            <p>
-              {isActivity ? (
-                <>
-                  Caminar, correr, entrenar…
-                  <br />
-                  Elige la actividad que mejor describa la tuya.
-                </>
-              ) : selectedHabit === 'sleep-goal' ? (
-                <>
-                  Se suman noches y siestas de cada día.
-                  <br />
-                  Revisamos los últimos 7 días.
-                </>
-              ) : selectedHabit === 'sleep-quality' ? (
-                <>
-                  Una valoración por noche.
-                  <br />
-                  Puntúa tu descanso del 1 al 5.
-                </>
-              ) : selectedHabit === 'training-goal' ? (
-                <>
-                  Cuenta los días distintos con actividad.
-                  <br />
-                  El progreso se actualiza al registrar entrenamientos.
-                </>
-              ) : isSleep ? (
-                <>
-                  Tu descanso, día a día.
-                  <br />
-                  Registra más de 0 y hasta 24 horas.
-                </>
-              ) : isWater ? (
-                <>
-                  Ajusta tu meta cuando quieras.
-                  <br />
-                  Revisa los consumos que has registrado.
-                </>
-              ) : null}
-            </p>
-          </div>
         </section>
 
         <div className="habit-panel" id="activity-panel" hidden={!isActivity}>
-          <div className="activity-panel-stack">
-            <ActivityForm
-              onSaved={refreshActivities}
-              showHistory={showActivityHistory}
-              onToggleHistory={() =>
-                setShowActivityHistory((current) => !current)
-              }
-            />
-            <ActivityHistory
-              userId="demo-user"
-              active={isActivity && showActivityHistory}
-              revision={activityRevision}
-            />
+          <div hidden={showActivityHistory}>
+            <ActivityForm onSaved={refreshActivities} />
+          </div>
+          <div
+            id="activity-history-panel"
+            tabIndex={-1}
+            hidden={!showActivityHistory}
+          >
+            <ActivityHistory active={historyOpen} revision={activityRevision} />
           </div>
         </div>
         <div
@@ -274,8 +234,8 @@ export default function RegisterActivityPage() {
         <div className="habit-panel" id="water-panel" hidden={!isWater}>
           {isWater && (
             <div className="water-hydration-stack">
-              <HydrationGoalForm />
               <WaterForm active={isWater} />
+              <HydrationGoalForm />
             </div>
           )}
         </div>

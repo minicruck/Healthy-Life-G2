@@ -19,7 +19,7 @@ La aplicación permite registrar actividades físicas, sueño y agua, consultar 
 
 Las funcionalidades terminadas del **Sprint 2** son HU3, HU6, HU8, HU9, HU10 y HU11. HU1 y HU2 ya estaban completas al finalizar el Sprint 1.
 
-La navegación de la web dispone de seis apartados: **Actividad física**, **Horas de sueño**, **Agua** (registro y meta de hidratación en la misma vista), **Objetivo de entrenamiento**, **Objetivo de sueño** y **Calidad del sueño**.
+La navegación agrupa los registros de actividad, sueño y agua y los accesos a los objetivos y la calidad del sueño. **Ver historial** abre las actividades desde la cabecera del registro. **Ver estadísticas e historial** lleva al seguimiento del sueño. En **Agua** se puede registrar un consumo y ajustar la meta diaria en la misma pantalla.
 
 ## Tecnologías y estructura
 
