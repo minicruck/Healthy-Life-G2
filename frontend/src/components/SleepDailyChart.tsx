@@ -15,16 +15,27 @@ import './SleepDailyChart.css'
 const series = [
   { key: 'night', label: 'Sueño nocturno', color: '#8f2035' },
   { key: 'nap', label: 'Siesta', color: '#ad734a' },
-  { key: 'other', label: 'Otro', color: '#68745d' },
-  { key: 'unclassified', label: 'Sin clasificar', color: '#8f8b82' },
+  { key: 'other', label: 'Otro', color: '#316578' },
+  { key: 'unclassified', label: 'Sin clasificar', color: '#716e66' },
 ] as const
 
-export default function SleepDailyChart({ days }: { days: SleepDay[] }) {
+export default function SleepDailyChart({
+  days,
+  maxHours,
+  showYear,
+}: {
+  days: SleepDay[]
+  maxHours: number
+  showYear: boolean
+}) {
   const id = useId()
   if (days.length === 0) return null
   const byDate = new Map(days.map((day) => [day.date, day]))
   return (
-    <figure className="sleep-daily-chart" aria-labelledby={`${id}-title`}>
+    <figure
+      className="sleep-daily-chart sleep-chart-card"
+      aria-labelledby={`${id}-title`}
+    >
       <figcaption>
         <h3 id={`${id}-title`}>Horas totales por día</h3>
         <span>Todos los descansos de una misma fecha</span>
@@ -58,17 +69,18 @@ export default function SleepDailyChart({ days }: { days: SleepDay[] }) {
               dataKey="date"
               axisLine={{ stroke: '#c6cabd' }}
               tickLine={false}
-              tick={{ fill: '#686a63', fontSize: 11 }}
+              tick={{ fill: '#454a43', fontSize: 13 }}
               tickMargin={12}
               minTickGap={28}
-              tickFormatter={(date: string) => formatSleepDate(date, false)}
+              interval="preserveStartEnd"
+              tickFormatter={(date: string) => formatSleepDate(date, showYear)}
             />
             <YAxis
-              domain={[0, 'auto']}
+              domain={[0, maxHours]}
               axisLine={false}
               tickLine={false}
-              width={45}
-              tick={{ fill: '#686a63', fontSize: 11 }}
+              width="auto"
+              tick={{ fill: '#454a43', fontSize: 13 }}
               tickFormatter={(hours: number) => `${formatSleepHours(hours)} h`}
             />
             <Tooltip

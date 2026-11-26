@@ -4,15 +4,9 @@ import { ACTIVITY_OPTIONS, type ActivityType } from '../types/activity'
 
 type ActivityFormProps = {
   onSaved?: () => void
-  showHistory: boolean
-  onToggleHistory: () => void
 }
 
-export default function ActivityForm({
-  onSaved,
-  showHistory,
-  onToggleHistory,
-}: ActivityFormProps) {
+export default function ActivityForm({ onSaved }: ActivityFormProps) {
   const {
     values,
     submitting,
@@ -185,40 +179,26 @@ export default function ActivityForm({
         </div>
 
         <div className="form-actions">
-          <p>
-            Tu actividad,
-            <br />
-            <strong>un registro a la vez.</strong>
-          </p>
-          <div className="form-actions-group">
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={onToggleHistory}
-            >
-              {showHistory ? 'Ocultar historial' : 'Ver historial'}
-            </button>
-            <button
-              className="save-button"
-              type="submit"
-              disabled={submitting}
-              aria-busy={submitting}
-            >
-              {submitting ? (
-                <>
-                  <span className="button-spinner" aria-hidden="true" />
-                  Guardando actividad…
-                </>
-              ) : (
-                <>
-                  Guardar actividad
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 12h15m-6-6 6 6-6 6" />
-                  </svg>
-                </>
-              )}
-            </button>
-          </div>
+          <button
+            className="save-button"
+            type="submit"
+            disabled={submitting}
+            aria-busy={submitting}
+          >
+            {submitting ? (
+              <>
+                <span className="button-spinner" aria-hidden="true" />
+                Guardando actividad…
+              </>
+            ) : (
+              <>
+                Guardar actividad
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 12h15m-6-6 6 6-6 6" />
+                </svg>
+              </>
+            )}
+          </button>
         </div>
       </form>
     </section>

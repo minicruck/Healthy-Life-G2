@@ -26,9 +26,10 @@ export default function SleepStatsCards({
           <span className="sleep-stat-value" data-testid="sleep-stat-average">
             {formatSleepHours(average)}
           </span>
-          <span className="sleep-stat-unit">horas</span>
+          <span className="sleep-stat-unit">h por registro</span>
           <span className="sleep-stat-detail">
-            Solo los registros que has guardado.
+            {count}{' '}
+            {count === 1 ? 'descanso registrado' : 'descansos registrados'}
           </span>
         </dd>
       </div>
@@ -41,7 +42,7 @@ export default function SleepStatsCards({
           >
             {formatSleepHours(dailyStatistics.average!)}
           </span>
-          <span className="sleep-stat-unit">horas por día con registros</span>
+          <span className="sleep-stat-unit">h por día con datos</span>
           <span className="sleep-stat-detail">
             <span data-testid="sleep-stat-days">
               {dailyStatistics.dayCount}
@@ -59,7 +60,6 @@ export default function SleepStatsCards({
             {formatSleepHours(total)}
           </span>
           <span className="sleep-stat-unit">horas</span>
-          <span className="sleep-stat-detail">Suma del período</span>
         </dd>
       </div>
       <div className="sleep-stat">
@@ -71,7 +71,6 @@ export default function SleepStatsCards({
           <span className="sleep-stat-unit">
             {count === 1 ? 'registro' : 'registros'}
           </span>
-          <span className="sleep-stat-detail">Cada entrada cuenta</span>
         </dd>
       </div>
       <div className="sleep-stat">

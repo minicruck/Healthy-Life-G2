@@ -13,20 +13,20 @@
 
 .sleep-evolution-heading h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: clamp(18px, 1.8vw, 23px);
   font-weight: 600;
   letter-spacing: -0.2px;
 }
 
 .sleep-evolution-heading > span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .sleep-evolution-chart {
   width: 100%;
   min-width: 0;
-  height: 270px;
+  height: clamp(300px, 32vw, 400px);
 }
 
 .sleep-evolution-chart .recharts-surface:focus-visible {
@@ -42,7 +42,7 @@
   border-left: 3px solid var(--red);
   background: #fffefa;
   color: var(--ink);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -69,12 +69,12 @@
   display: block;
   color: var(--muted);
   margin-top: 4px;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .sleep-evolution-explanation,
 .sleep-evolution-keyboard {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.65;
   color: var(--muted);
 }
@@ -93,13 +93,5 @@
     align-items: flex-start;
     flex-direction: column;
     gap: 5px;
-  }
-
-  .sleep-evolution-heading h3 {
-    font-size: 14px;
-  }
-
-  .sleep-evolution-chart {
-    height: 245px;
   }
 }
