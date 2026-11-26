@@ -26,11 +26,15 @@ function isRealDate(value: string): boolean {
   );
 }
 
-export function validateNewActivity(body: unknown): ValidationResult {
+type ActivityFieldsResult =
+  | { ok: true; value: { activityType: string; activityDate: string; notes: string | null } }
+  | { ok: false; message: string };
+
+function validateActivityFields(body: unknown): ActivityFieldsResult {
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
     return { ok: false, message: "El cuerpo de la petición debe ser un objeto JSON." };
   }
-  const { activityType, activityDate, notes, intensity } = body as Record<string, unknown>;
+  const { activityType, activityDate, notes } = body as Record<string, unknown>;
 
   if (typeof activityType !== "string" || !(ACTIVITY_TYPES as readonly string[]).includes(activityType)) {
     return {
@@ -55,6 +59,14 @@ export function validateNewActivity(body: unknown): ValidationResult {
     cleanNotes = trimmed === "" ? null : trimmed;
   }
 
+  return { ok: true, value: { activityType, activityDate, notes: cleanNotes } };
+}
+
+export function validateNewActivity(body: unknown): ValidationResult {
+  const fields = validateActivityFields(body);
+  if (!fields.ok) return fields;
+  const { intensity } = body as Record<string, unknown>;
+
   // HU4 CA3: no se guarda un entrenamiento sin una intensidad válida.
   if (typeof intensity !== "string" || !(INTENSITY_LEVELS as readonly string[]).includes(intensity)) {
     return {
@@ -63,7 +75,22 @@ export function validateNewActivity(body: unknown): ValidationResult {
     };
   }
 
-  return { ok: true, value: { activityType, activityDate, notes: cleanNotes, intensity } };
+  return { ok: true, value: { ...fields.value, intensity } };
+}
+
+type ActivityUpdateResult =
+  | { ok: true; value: { activityType: string; activityDate: string; notes: string | null; intensity?: string } }
+  | { ok: false; message: string };
+
+export function validateActivityUpdate(body: unknown): ActivityUpdateResult {
+  const fields = validateActivityFields(body);
+  if (!fields.ok) return fields;
+  const { intensity } = body as Record<string, unknown>;
+  if (intensity === undefined) return fields;
+  if (typeof intensity !== "string" || !(INTENSITY_LEVELS as readonly string[]).includes(intensity)) {
+    return { ok: false, message: "Selecciona una intensidad válida." };
+  }
+  return { ok: true, value: { ...fields.value, intensity } };
 }
 
 export const SLEEP_TYPES = ["night", "nap", "other"] as const;

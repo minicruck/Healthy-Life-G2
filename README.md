@@ -12,6 +12,7 @@ La aplicación permite registrar actividades físicas, sueño y agua, consultar 
 | HU2 | Registrar y editar descansos, consultar el historial y las estadísticas de sueño |
 | HU3 | Registrar consumos de agua y consultar el total diario |
 | HU6 | Consultar el historial de actividades físicas, ordenado por fecha |
+| HU7 | Corregir o eliminar una actividad desde el historial y actualizar el progreso semanal |
 | HU8 | Fijar un objetivo de entrenamiento de 1 a 7 días por semana y consultar el progreso |
 | HU9 | Fijar o modificar la meta diaria de hidratación |
 | HU10 | Configurar un objetivo mínimo de sueño y mostrar avisos de cumplimiento |
@@ -75,6 +76,7 @@ Las rutas actuales emplean el usuario de demostración configurado en `DEMO_USER
 | --- | --- | --- |
 | GET | `/api/health` | Estado del backend |
 | GET / POST | `/api/activities` | Historial y alta de actividades |
+| PATCH / DELETE | `/api/activities/:id` | Editar o eliminar una actividad del usuario configurado |
 | GET / POST | `/api/sleep` | Historial y alta de descansos |
 | PATCH | `/api/sleep/:id` | Edición de un descanso |
 | GET / POST | `/api/water` | Historial y alta de consumos |
@@ -84,7 +86,7 @@ Las rutas actuales emplean el usuario de demostración configurado en `DEMO_USER
 | GET / PUT | `/api/sleep-goal` | Objetivo mínimo de sueño y comprobación de cumplimiento |
 | GET / POST | `/api/sleep-quality` | Valoraciones de la calidad del sueño |
 
-Más información en los contratos de [HU1](docs/hu1-api.md), [HU4](docs/hu4-api.md), [HU2](docs/hu2-api.md), [HU3](docs/hu3-api.md), [HU8](docs/hu8-api.md), [HU9](docs/hu9-api.md), [HU10](docs/hu10-api.md) y [HU11](docs/sleep-quality-api.md). El historial de HU6 utiliza `GET /api/activities`.
+Más información en los contratos de [HU1](docs/hu1-api.md), [HU4](docs/hu4-api.md), [HU2](docs/hu2-api.md), [HU3](docs/hu3-api.md), [HU7](docs/hu7-api.md), [HU8](docs/hu8-api.md), [HU9](docs/hu9-api.md), [HU10](docs/hu10-api.md) y [HU11](docs/sleep-quality-api.md). El historial de HU6 utiliza `GET /api/activities`.
 
 ## Pruebas
 

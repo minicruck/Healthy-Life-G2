@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Activity, ActivityPayload } from '../types/activity'
-import { ApiError, createActivity, listActivities } from './activities'
+import { ApiError, createActivity, listActivities, updateActivity, deleteActivity } from './activities'
 
 const payload: ActivityPayload = {
   activityType: 'walking',
@@ -373,4 +373,82 @@ describe('HU4 · intensidad en GET /api/activities', () => {
     )
     await expect(listActivities()).rejects.toMatchObject({ kind: 'unexpected' })
   })
+})
+
+describe('modificaciones en el historial de actividad', () => {
+  it('vacía las notas y envía solo los campos editables a la fila elegida', async () => {
+    const response = { ...activity, notes: null, intensity: 'low' }
+    fetchMock.mockResolvedValue(jsonResponse(response, 200))
+    const changes = {
+      ...payload,
+      notes: '  ',
+      userId: 'other',
+      intensity: 'low' as const,
+    }
+    await expect(updateActivity(activity.id, changes)).resolves.toEqual(
+      response,
+    )
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('http://localhost:3001/api/activities/1')
+    expect(init?.method).toBe('PATCH')
+    expect(JSON.parse(String(init?.body))).toEqual({
+      activityType: payload.activityType,
+      activityDate: payload.activityDate,
+      intensity: 'low',
+      notes: null,
+    })
+  })
+
+  it.each([
+    { ...activity, id: 2 },
+    { ...activity, intensity: 'high' },
+    { ...activity, notes: 'Cambio no confirmado' },
+  ])(
+    'rechaza una confirmación que no corresponde al cambio enviado',
+    async (body) => {
+      fetchMock.mockResolvedValue(jsonResponse(body, 200))
+      await expect(updateActivity(1, payload)).rejects.toMatchObject({
+        kind: 'unexpected',
+      })
+    },
+  )
+
+  it('permite editar un registro antiguo conservando su intensidad nula', async () => {
+    const changes = { activityType: payload.activityType, activityDate: payload.activityDate, notes: payload.notes }
+    fetchMock.mockResolvedValue(jsonResponse({ ...activity, intensity: null }, 200))
+    await expect(updateActivity(activity.id, changes)).resolves.toMatchObject({ intensity: null })
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).not.toHaveProperty('intensity')
+  })
+
+  it('requiere un 204 del recurso elegido para confirmar un borrado', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(activity, 200))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    await expect(deleteActivity(1)).rejects.toMatchObject({
+      kind: 'unexpected',
+    })
+    await expect(deleteActivity(1)).resolves.toBeUndefined()
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'http://localhost:3001/api/activities/1',
+      {
+        method: 'DELETE',
+        signal: expect.any(AbortSignal),
+      },
+    )
+  })
+
+  it.each([() => updateActivity(1, payload), () => deleteActivity(1)])(
+    'distingue un 404 de una desconexión sin repetir la operación',
+    async (change) => {
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({}, 404))
+        .mockRejectedValueOnce(new TypeError('Offline'))
+      await expect(change()).rejects.toMatchObject({
+        kind: 'http',
+        status: 404,
+      })
+      await expect(change()).rejects.toMatchObject({ kind: 'network' })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    },
+  )
 })

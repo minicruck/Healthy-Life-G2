@@ -289,6 +289,47 @@ export function listActivities(db: DatabaseSync, userId: string): ActivityRow[] 
     .all(userId) as unknown as ActivityRow[];
 }
 
+// HU7: actividad e intensidad se actualizan juntas, sin cambiar identidad ni fecha de alta.
+export function updateActivity(
+  db: DatabaseSync, id: number,
+  a: Pick<NewActivity, "userId" | "activityType" | "activityDate" | "notes"> & { intensity?: string }
+): ActivityRow | undefined {
+  db.exec("BEGIN");
+  try {
+    const result = db.prepare(`UPDATE activities SET activity_type = ?, activity_date = ?, notes = ?
+      WHERE id = ? AND user_id = ?`).run(a.activityType, a.activityDate, a.notes, id, a.userId);
+    if (Number(result.changes) === 0) {
+      db.exec("COMMIT");
+      return undefined;
+    }
+    if (a.intensity !== undefined) {
+      db.prepare(`INSERT INTO activity_intensity (activity_id, intensity) VALUES (?, ?)
+        ON CONFLICT(activity_id) DO UPDATE SET intensity = excluded.intensity`).run(id, a.intensity);
+    }
+    const row = db.prepare(`${ACTIVITY_SELECT} WHERE a.id = ? AND a.user_id = ?`)
+      .get(id, a.userId) as unknown as ActivityRow;
+    db.exec("COMMIT");
+    return row;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+export function deleteActivity(db: DatabaseSync, userId: string, id: number): boolean {
+  db.exec("BEGIN");
+  try {
+    db.prepare(`DELETE FROM activity_intensity WHERE activity_id IN
+      (SELECT id FROM activities WHERE id = ? AND user_id = ?)`).run(id, userId);
+    const result = db.prepare("DELETE FROM activities WHERE id = ? AND user_id = ?").run(id, userId);
+    db.exec("COMMIT");
+    return Number(result.changes) === 1;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 export function insertSleep(db: DatabaseSync, sleep: NewSleep): SleepRow {
   const createdAt = new Date().toISOString();
   const result = db

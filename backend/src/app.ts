@@ -11,6 +11,8 @@ import {
   findHydrationGoal,
   findSleepQualityByDate,
   insertActivity,
+  updateActivity,
+  deleteActivity,
   insertSleep,
   insertWater,
   listActivities,
@@ -31,6 +33,7 @@ import {
   parseSleepId,
   validateHydrationGoal,
   validateNewActivity,
+  validateActivityUpdate,
   validateNewSleep,
   validateNewSleepQuality,
   validateNewWater,
@@ -199,6 +202,39 @@ export function createApp({ db, demoUserId, corsOrigin }: AppConfig) {
   // Auxiliar: permite comprobar que lo registrado se ha guardado.
   app.get("/api/activities", (_req, res) => {
     res.json(listActivities(db, demoUserId).map(toApi));
+  });
+
+  // HU7 — Se validan los campos editables, sin exigir nuevos campos de alta.
+  app.patch("/api/activities/:id", (req, res) => {
+    const id = parseSleepId(req.params.id);
+    if (id === null) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", "El identificador de la actividad no es válido."));
+      return;
+    }
+    const result = validateActivityUpdate(req.body);
+    if (!result.ok) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", result.message));
+      return;
+    }
+    const row = updateActivity(db, id, { userId: demoUserId, ...result.value });
+    if (!row) {
+      res.status(404).json(errorBody("NOT_FOUND", "No se encuentra la actividad."));
+      return;
+    }
+    res.json(toApi(row));
+  });
+
+  app.delete("/api/activities/:id", (req, res) => {
+    const id = parseSleepId(req.params.id);
+    if (id === null) {
+      res.status(400).json(errorBody("VALIDATION_ERROR", "El identificador de la actividad no es válido."));
+      return;
+    }
+    if (!deleteActivity(db, demoUserId, id)) {
+      res.status(404).json(errorBody("NOT_FOUND", "No se encuentra la actividad."));
+      return;
+    }
+    res.status(204).end();
   });
 
   // HU2 — Registrar horas de sueño. La identidad la proporciona el servidor.

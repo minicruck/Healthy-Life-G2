@@ -5,6 +5,11 @@ import {
   type ActivityPayload,
 } from '../types/activity'
 
+export type EditableActivityFields = ActivityFormValues
+export type ActivityChanges = Omit<ActivityPayload, 'intensity'> & {
+  intensity?: ActivityPayload['intensity']
+}
+
 /** Calendar-only dates deliberately never pass through Date or UTC conversion. */
 export function isRealCalendarDate(value: string): boolean {
   if (value.length !== 10 || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
@@ -37,7 +42,7 @@ export function localToday(date = new Date()): string {
   return `${year}-${month}-${day}`
 }
 
-export function validateActivity(
+export function validateActivityFields(
   values: ActivityFormValues,
 ): Partial<Record<keyof ActivityFormValues, string>> {
   const errors: Partial<Record<keyof ActivityFormValues, string>> = {}
@@ -50,8 +55,7 @@ export function validateActivity(
   } else if (!isRealCalendarDate(values.activityDate)) {
     errors.activityDate = 'Introduce una fecha real con formato día, mes y año.'
   }
-  // HU4 CA3: la intensidad es obligatoria para guardar el entrenamiento.
-  if (!INTENSITY_OPTIONS.some(({ value }) => value === values.intensity)) {
+  if (values.intensity !== '' && !INTENSITY_OPTIONS.some(({ value }) => value === values.intensity)) {
     errors.intensity = 'Selecciona la intensidad del entrenamiento.'
   }
   if (values.notes.length > 500) {
@@ -59,6 +63,29 @@ export function validateActivity(
   }
 
   return errors
+}
+
+export function validateActivity(
+  values: ActivityFormValues,
+): Partial<Record<keyof ActivityFormValues, string>> {
+  const errors = validateActivityFields(values)
+  if (values.intensity === '') {
+    errors.intensity = 'Selecciona la intensidad del entrenamiento.'
+  }
+  return errors
+}
+
+export function toActivityChanges(values: EditableActivityFields): ActivityChanges {
+  if (Object.keys(validateActivityFields(values)).length > 0 || values.activityType === '') {
+    throw new Error('No se puede enviar una actividad con datos inválidos.')
+  }
+  const notes = values.notes.trim()
+  return {
+    activityType: values.activityType,
+    activityDate: values.activityDate,
+    ...(values.intensity ? { intensity: values.intensity } : {}),
+    ...(notes ? { notes } : {}),
+  }
 }
 
 export function toActivityPayload(values: ActivityFormValues): ActivityPayload {

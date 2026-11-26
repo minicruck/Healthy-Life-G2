@@ -198,7 +198,11 @@ export default function RegisterActivityPage() {
             tabIndex={-1}
             hidden={!showActivityHistory}
           >
-            <ActivityHistory active={historyOpen} revision={activityRevision} />
+            <ActivityHistory
+              active={historyOpen}
+              revision={activityRevision}
+              onChanged={refreshActivities}
+            />
           </div>
         </div>
         <div
