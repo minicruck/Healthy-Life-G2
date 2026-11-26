@@ -259,7 +259,8 @@ test('permite recorrer un historial largo manteniendo las escalas, las cifras y 
   await assertPoints(page, records.slice(-14))
   const ticks = page
     .getByTestId('sleep-evolution-chart')
-    .locator('.recharts-yAxis .recharts-cartesian-axis-tick-value')
+    .locator('svg text')
+    .filter({ hasText: / h$/ })
   await expect(ticks.first()).toBeVisible()
   const originalScale = await ticks.allTextContents()
   const recordPager = page.getByRole('group', { name: 'Tramos de registros' })
