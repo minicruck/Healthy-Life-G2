@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError, listActivities } from '../services/activities'
 import HistoryList from './HistoryList'
+import ActivityManagementDialog from './ActivityManagementDialog'
 import {
   ACTIVITY_OPTIONS,
   INTENSITY_OPTIONS,
@@ -13,6 +14,7 @@ type ActivityHistoryProps = {
   userId?: string
   active?: boolean
   revision?: number
+  onChanged?: () => void
 }
 
 const activityLabels = Object.fromEntries(
@@ -39,12 +41,32 @@ export default function ActivityHistory({
   userId = 'demo-user',
   active = true,
   revision = 0,
+  onChanged,
 }: ActivityHistoryProps) {
   const [records, setRecords] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
 
+  const [selection, setSelection] = useState<{
+    record: Activity
+    mode: 'edit' | 'delete'
+  } | null>(null)
+  const [notice, setNotice] = useState('')
+
+  function changed(updated: Activity | null) {
+    if (!selection) return
+    const id = selection.record.id
+    setRecords((previous) =>
+      updated
+        ? previous.map((record) => (record.id === id ? updated : record))
+        : previous.filter((record) => record.id !== id),
+    )
+    setNotice(updated ? 'Actividad actualizada.' : 'Actividad eliminada.')
+    setSelection(null)
+    if (onChanged) onChanged()
+    else setAttempt((value) => value + 1)
+  }
   useEffect(() => {
     if (!active) return
 
@@ -73,6 +95,11 @@ export default function ActivityHistory({
     }
   }, [active, revision, userId, attempt])
 
+  useEffect(() => {
+    if (notice && active && !selection)
+      document.getElementById('activity-history-title')?.focus()
+  }, [notice, active, selection])
+
   const orderedRecords = useMemo(
     () =>
       [...records].sort(
@@ -92,7 +119,9 @@ export default function ActivityHistory({
     >
       <div className="activity-history-header">
         <div>
-          <h2 id="activity-history-title">Historial de actividades</h2>
+          <h2 id="activity-history-title" tabIndex={-1}>
+            Historial de actividades
+          </h2>
         </div>
         {!loading && !error && orderedRecords.length > 0 && (
           <span className="activity-history-count">
@@ -102,6 +131,7 @@ export default function ActivityHistory({
         )}
       </div>
 
+      {notice && <p role="status">{notice}</p>}
       {loading ? (
         <p className="activity-history-status" role="status">
           Cargando historial…
@@ -154,9 +184,42 @@ export default function ActivityHistory({
               {record.notes?.trim() && (
                 <p className="activity-history-notes">{record.notes}</p>
               )}
+              <div className="activity-history-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  aria-label={`Editar actividad #${record.id}`}
+                  onClick={() => {
+                    setNotice('')
+                    setSelection({ record, mode: 'edit' })
+                  }}
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  aria-label={`Eliminar actividad #${record.id}`}
+                  onClick={() => {
+                    setNotice('')
+                    setSelection({ record, mode: 'delete' })
+                  }}
+                >
+                  Eliminar
+                </button>
+              </div>
             </li>
           )}
         </HistoryList>
+      )}
+      {selection && (
+        <ActivityManagementDialog
+          key={selection.record.id}
+          record={selection.record}
+          mode={selection.mode}
+          onClose={() => setSelection(null)}
+          onSaved={changed}
+        />
       )}
     </section>
   )
