@@ -238,7 +238,7 @@ test("añade sleep_records a una base HU1 existente sin alterar su tabla ni sus 
 
     const activity = await request(migratedApp)
       .post("/api/activities")
-      .send({ activityType: "running", activityDate: "2026-10-10" });
+      .send({ activityType: "running", activityDate: "2026-10-10", intensity: "moderate" });
     assert.equal(activity.status, 201);
     assert.equal(activity.body.id, 2);
     assert.equal((await request(migratedApp).get("/api/activities")).body.length, 2);

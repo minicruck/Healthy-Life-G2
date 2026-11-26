@@ -12,6 +12,7 @@ type Feedback = { kind: 'success' | 'error'; message: string } | null
 const emptyForm = (): ActivityFormValues => ({
   activityType: '',
   activityDate: localToday(),
+  intensity: '',
   notes: '',
 })
 
@@ -45,12 +46,20 @@ export function useActivityForm(options: { onSaved?: () => void } = {}) {
     event.preventDefault()
     if (inFlight.current) return
     setFeedback(null)
-    setTouched({ activityType: true, activityDate: true, notes: true })
+    setTouched({
+      activityType: true,
+      activityDate: true,
+      intensity: true,
+      notes: true,
+    })
     const firstInvalid = (Object.keys(errors) as FieldName[])[0]
     if (firstInvalid) {
       setValidationNotice(true)
       const field = form.current?.elements.namedItem(firstInvalid)
-      if (field instanceof HTMLElement) field.focus()
+      // Un grupo de radios devuelve RadioNodeList: se enfoca su primera opción.
+      const target =
+        field instanceof RadioNodeList ? (field[0] as Element | undefined) : field
+      if (target instanceof HTMLElement) target.focus()
       return
     }
 

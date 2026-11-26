@@ -84,7 +84,7 @@ Las rutas actuales emplean el usuario de demostración configurado en `DEMO_USER
 | GET / PUT | `/api/sleep-goal` | Objetivo mínimo de sueño y comprobación de cumplimiento |
 | GET / POST | `/api/sleep-quality` | Valoraciones de la calidad del sueño |
 
-Más información en los contratos de [HU1](docs/hu1-api.md), [HU2](docs/hu2-api.md), [HU3](docs/hu3-api.md), [HU8](docs/hu8-api.md), [HU9](docs/hu9-api.md), [HU10](docs/hu10-api.md) y [HU11](docs/sleep-quality-api.md). El historial de HU6 utiliza `GET /api/activities`.
+Más información en los contratos de [HU1](docs/hu1-api.md), [HU4](docs/hu4-api.md), [HU2](docs/hu2-api.md), [HU3](docs/hu3-api.md), [HU8](docs/hu8-api.md), [HU9](docs/hu9-api.md), [HU10](docs/hu10-api.md) y [HU11](docs/sleep-quality-api.md). El historial de HU6 utiliza `GET /api/activities`.
 
 ## Pruebas
 

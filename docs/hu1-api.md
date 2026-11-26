@@ -7,7 +7,7 @@ Cualquier cambio en este documento se acuerda entre ambos y se sube mediante Pul
 
 > **HU1 — Registrar actividad física.** Como usuario de Healthy Life, quiero registrar la actividad física y los entrenamientos que realizo para llevar un seguimiento de mi nivel de actividad.
 
-La duración y la intensidad **no** forman parte de HU1: se tratan en HU6.
+La duración y la intensidad **no** forman parte de HU1. Desde la **HU4** el campo `intensity` es obligatorio en este mismo endpoint: ver [hu4-api.md](hu4-api.md).
 
 ## Conexión
 

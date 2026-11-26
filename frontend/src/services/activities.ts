@@ -4,6 +4,7 @@ import {
 } from '../lib/activityValidation'
 import {
   ACTIVITY_OPTIONS,
+  INTENSITY_OPTIONS,
   type Activity,
   type ActivityPayload,
 } from '../types/activity'
@@ -48,6 +49,10 @@ function isUtcTimestamp(value: unknown): value is string {
   )
 }
 
+function isIntensity(value: unknown): value is Activity['intensity'] & string {
+  return INTENSITY_OPTIONS.some(({ value: level }) => level === value)
+}
+
 function isActivity(
   value: unknown,
   submitted: ActivityPayload,
@@ -65,6 +70,8 @@ function isActivity(
     (value.notes === null ||
       (typeof value.notes === 'string' && value.notes.length <= 500)) &&
     value.notes === (submitted.notes ?? null) &&
+    isIntensity(value.intensity) &&
+    value.intensity === submitted.intensity &&
     isUtcTimestamp(value.createdAt)
   )
 }
@@ -147,6 +154,8 @@ export async function listActivities(
       typeof item.activityDate !== 'string' ||
       !isRealCalendarDate(item.activityDate) ||
       (item.notes !== null && typeof item.notes !== 'string') ||
+      // Los registros anteriores a HU4 pueden no tener intensidad (null o ausente).
+      !(item.intensity === undefined || item.intensity === null || isIntensity(item.intensity)) ||
       !isUtcTimestamp(item.createdAt)
     ) {
       throw new ApiError('unexpected', 'El historial contiene registros inválidos.')
@@ -157,6 +166,7 @@ export async function listActivities(
       activityType: activityType as Activity['activityType'],
       activityDate: item.activityDate,
       notes: item.notes as string | null,
+      intensity: isIntensity(item.intensity) ? item.intensity : null,
       createdAt: item.createdAt,
     }
   })
@@ -198,6 +208,7 @@ export async function createActivity(
   const submitted = toActivityPayload({
     activityType: payload.activityType,
     activityDate: payload.activityDate,
+    intensity: payload.intensity,
     notes: payload.notes ?? '',
   })
   if (options.signal?.aborted) throw new ApiError('network', CANCELLED_MESSAGE)

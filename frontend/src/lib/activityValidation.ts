@@ -1,5 +1,6 @@
 import {
   ACTIVITY_OPTIONS,
+  INTENSITY_OPTIONS,
   type ActivityFormValues,
   type ActivityPayload,
 } from '../types/activity'
@@ -49,6 +50,10 @@ export function validateActivity(
   } else if (!isRealCalendarDate(values.activityDate)) {
     errors.activityDate = 'Introduce una fecha real con formato día, mes y año.'
   }
+  // HU4 CA3: la intensidad es obligatoria para guardar el entrenamiento.
+  if (!INTENSITY_OPTIONS.some(({ value }) => value === values.intensity)) {
+    errors.intensity = 'Selecciona la intensidad del entrenamiento.'
+  }
   if (values.notes.length > 500) {
     errors.notes = 'Las observaciones no pueden superar los 500 caracteres.'
   }
@@ -59,7 +64,8 @@ export function validateActivity(
 export function toActivityPayload(values: ActivityFormValues): ActivityPayload {
   if (
     Object.keys(validateActivity(values)).length > 0 ||
-    values.activityType === ''
+    values.activityType === '' ||
+    values.intensity === ''
   ) {
     throw new Error('No se puede enviar una actividad con datos inválidos.')
   }
@@ -70,6 +76,7 @@ export function toActivityPayload(values: ActivityFormValues): ActivityPayload {
   return {
     activityType: values.activityType,
     activityDate: values.activityDate,
+    intensity: values.intensity,
     ...(notes ? { notes } : {}),
   }
 }

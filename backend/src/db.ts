@@ -13,6 +13,8 @@ export interface ActivityRow {
   activity_date: string;
   notes: string | null;
   created_at: string;
+  /** HU4: NULL en registros anteriores a la HU4 (no se inventa su intensidad). */
+  intensity: string | null;
 }
 
 export interface NewActivity {
@@ -20,6 +22,7 @@ export interface NewActivity {
   activityType: string;
   activityDate: string;
   notes: string | null;
+  intensity: string;
 }
 
 export interface SleepRow {
@@ -65,6 +68,14 @@ export function openDatabase(path: string): DatabaseSync {
       activity_date TEXT    NOT NULL,
       notes         TEXT,
       created_at    TEXT    NOT NULL
+    )
+  `);
+  // HU4 — Intensidad del entrenamiento. Tabla aparte (1:1 con activities) para no
+  // alterar el esquema ni las filas de activities: migración puramente aditiva.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS activity_intensity (
+      activity_id INTEGER PRIMARY KEY REFERENCES activities(id),
+      intensity   TEXT    NOT NULL CHECK (intensity IN ('low', 'moderate', 'high'))
     )
   `);
   // Migración aditiva: conserva la tabla activities y sus registros existentes.
@@ -240,25 +251,40 @@ export function saveHydrationGoal(
   return findHydrationGoal(db, userId)!;
 }
 
+const ACTIVITY_SELECT = `
+  SELECT a.*, ai.intensity AS intensity
+  FROM activities a
+  LEFT JOIN activity_intensity ai ON ai.activity_id = a.id`;
+
 export function insertActivity(db: DatabaseSync, a: NewActivity): ActivityRow {
   const createdAt = new Date().toISOString();
-  const result = db
-    .prepare(
-      `INSERT INTO activities (user_id, activity_type, activity_date, notes, created_at)
-       VALUES (?, ?, ?, ?, ?)`
-    )
-    .run(a.userId, a.activityType, a.activityDate, a.notes, createdAt);
-
-  return db
-    .prepare(`SELECT * FROM activities WHERE id = ?`)
-    .get(Number(result.lastInsertRowid)) as unknown as ActivityRow;
+  // La actividad y su intensidad se guardan juntas o no se guarda ninguna (CA1).
+  db.exec("BEGIN");
+  try {
+    const result = db
+      .prepare(
+        `INSERT INTO activities (user_id, activity_type, activity_date, notes, created_at)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      .run(a.userId, a.activityType, a.activityDate, a.notes, createdAt);
+    const id = Number(result.lastInsertRowid);
+    db.prepare(`INSERT INTO activity_intensity (activity_id, intensity) VALUES (?, ?)`)
+      .run(id, a.intensity);
+    db.exec("COMMIT");
+    return db
+      .prepare(`${ACTIVITY_SELECT} WHERE a.id = ?`)
+      .get(id) as unknown as ActivityRow;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 export function listActivities(db: DatabaseSync, userId: string): ActivityRow[] {
   return db
     .prepare(
-      `SELECT * FROM activities WHERE user_id = ?
-       ORDER BY activity_date DESC, id DESC`
+      `${ACTIVITY_SELECT} WHERE a.user_id = ?
+       ORDER BY a.activity_date DESC, a.id DESC`
     )
     .all(userId) as unknown as ActivityRow[];
 }
