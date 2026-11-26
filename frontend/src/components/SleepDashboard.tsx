@@ -223,6 +223,11 @@ export default function SleepDashboard({
                 statistics={statistics}
                 dailyStatistics={dailyStatistics}
               />
+              <p className="sleep-stats-note">
+                La media por registro divide el total de horas entre los
+                registros; la media diaria, entre los días con registros (los
+                días sin datos no cuentan como cero).
+              </p>
               <SleepChartBoundary>
                 <Suspense
                   fallback={<p role="status">Preparando la gráfica…</p>}

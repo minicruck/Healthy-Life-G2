@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import './HistoryList.css'
 
 const PAGE_SIZE = 10
@@ -17,6 +17,11 @@ export default function HistoryList<T extends { id: number }>({
   children,
 }: HistoryListProps<T>) {
   const [selectedPage, setSelectedPage] = useState(1)
+
+  useEffect(() => {
+    setSelectedPage(1)
+  }, [records.length])
+
   const pageCount = Math.max(1, Math.ceil(records.length / PAGE_SIZE))
   const page = Math.min(selectedPage, pageCount)
   const start = (page - 1) * PAGE_SIZE
