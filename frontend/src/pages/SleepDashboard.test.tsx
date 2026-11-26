@@ -47,7 +47,9 @@ const noSleepGoal = {
   alert: false,
 }
 const isSleepGoalRequest = (input: RequestInfo | URL) =>
-  String(input instanceof Request ? input.url : input).includes('/api/sleep-goal')
+  String(input instanceof Request ? input.url : input).includes(
+    '/api/sleep-goal',
+  )
 
 beforeEach(() => {
   // Only freeze Date: user events and async request settling keep real timers.
@@ -178,6 +180,9 @@ describe('Seguimiento de sueño en la aplicación', () => {
       screen.getByRole('button', { name: 'Últimos 7 días' }),
     ).toHaveAttribute('aria-pressed', 'true')
     expectStats({ average: 7, total: 14, count: 2, max: 8, min: 6 })
+    expect(
+      screen.getByText(/los días sin datos no cuentan como cero/),
+    ).toBeVisible()
     for (const label of [
       'Media por registro',
       'Total de horas',
