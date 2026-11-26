@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { listActivities } from '../services/activities'
+import { ApiError, listActivities } from '../services/activities'
+import HistoryList from './HistoryList'
 import { ACTIVITY_OPTIONS, type Activity } from '../types/activity'
 import './ActivityHistory.css'
 
@@ -21,6 +22,7 @@ function formatDate(date: string) {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
+    timeZone: 'UTC',
   }).format(parsed)
 }
 
@@ -30,8 +32,9 @@ export default function ActivityHistory({
   revision = 0,
 }: ActivityHistoryProps) {
   const [records, setRecords] = useState<Activity[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (!active) return
@@ -47,9 +50,9 @@ export default function ActivityHistory({
       .catch((requestError: unknown) => {
         if (isCancelled) return
         setError(
-          requestError instanceof Error
+          requestError instanceof ApiError
             ? requestError.message
-            : 'No se pudo cargar el historial de actividades.',
+            : 'Comprueba la conexión y vuelve a intentarlo.',
         )
       })
       .finally(() => {
@@ -59,35 +62,52 @@ export default function ActivityHistory({
     return () => {
       isCancelled = true
     }
-  }, [active, revision, userId])
+  }, [active, revision, userId, attempt])
 
   const orderedRecords = useMemo(
     () =>
-      [...records].sort((left, right) => {
-        const leftDate = new Date(`${left.activityDate}T12:00:00Z`).getTime()
-        const rightDate = new Date(`${right.activityDate}T12:00:00Z`).getTime()
-
-        return rightDate - leftDate || right.id - left.id
-      }),
+      [...records].sort(
+        (left, right) =>
+          right.activityDate.localeCompare(left.activityDate) ||
+          right.id - left.id,
+      ),
     [records],
   )
 
   return (
-    <section className="activity-history" hidden={!active} aria-live="polite">
+    <section
+      id="activity-history"
+      className="activity-history"
+      hidden={!active}
+      aria-labelledby="activity-history-title"
+    >
       <div className="activity-history-header">
         <div>
-          <p className="activity-history-eyebrow">HISTORIAL</p>
-          <h2>Historial de actividades</h2>
+          <h2 id="activity-history-title">Historial de actividades</h2>
         </div>
-        <span className="activity-history-user">Usuario {userId}</span>
+        {!loading && !error && orderedRecords.length > 0 && (
+          <span className="activity-history-count">
+            {orderedRecords.length}{' '}
+            {orderedRecords.length === 1 ? 'registro' : 'registros'}
+          </span>
+        )}
       </div>
 
       {loading ? (
-        <p className="activity-history-status">Cargando historial…</p>
+        <p className="activity-history-status" role="status">
+          Cargando historial…
+        </p>
       ) : error ? (
-        <div className="activity-history-message activity-history-error" role="alert">
+        <div className="activity-history-message activity-history-error">
           <h3>No se ha podido cargar el historial</h3>
-          <p>{error}</p>
+          <p role="alert">{error}</p>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => setAttempt((value) => value + 1)}
+          >
+            Reintentar consulta
+          </button>
         </div>
       ) : orderedRecords.length === 0 ? (
         <div className="activity-history-message activity-history-empty">
@@ -98,8 +118,12 @@ export default function ActivityHistory({
           </div>
         </div>
       ) : (
-        <ul className="activity-history-list">
-          {orderedRecords.map((record) => (
+        <HistoryList
+          records={orderedRecords}
+          label="Actividades registradas"
+          className="activity-history-list"
+        >
+          {(record) => (
             <li key={record.id} className="activity-history-item">
               <div className="activity-history-item-header">
                 <span className="activity-history-tag">
@@ -109,12 +133,12 @@ export default function ActivityHistory({
                   {formatDate(record.activityDate)}
                 </time>
               </div>
-              <p className="activity-history-notes">
-                {record.notes?.trim() || 'Sin observaciones.'}
-              </p>
+              {record.notes?.trim() && (
+                <p className="activity-history-notes">{record.notes}</p>
+              )}
             </li>
-          ))}
-        </ul>
+          )}
+        </HistoryList>
       )}
     </section>
   )

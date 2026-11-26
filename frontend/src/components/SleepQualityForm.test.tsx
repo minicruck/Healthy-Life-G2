@@ -68,7 +68,7 @@ describe('Calidad del sueño (CA1 - CA5)', () => {
     // Seleccionar valoración 4 (Buena)
     const rating4Btn = screen.getByRole('radio', { name: /4.*Buena/i })
     await user.click(rating4Btn)
-    expect(rating4Btn).toHaveAttribute('aria-checked', 'true')
+    expect(rating4Btn).toBeChecked()
 
     // Escribir comentario opcional
     await user.type(
@@ -199,9 +199,7 @@ describe('Calidad del sueño (CA1 - CA5)', () => {
         replaced: true,
       }),
     )
-    fetchMock.mockResolvedValueOnce(
-      json([{ ...existingRecord, rating: 5 }]),
-    )
+    fetchMock.mockResolvedValueOnce(json([{ ...existingRecord, rating: 5 }]))
 
     // Hacemos clic en Sustituir valoración
     const replaceBtn = screen.getByRole('button', {
